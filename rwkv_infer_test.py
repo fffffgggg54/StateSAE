@@ -12,7 +12,8 @@ model = model.eval()
 
 ds = datasets.load_dataset("JeanKaddour/minipile")
 iterable_train_ds = iter(ds['train'])
-device = torch.device('cuda:0')
+#device = torch.device('cuda:0')
+device = torch.device('cpu')
 model = model.to(device)
 for param in model.parameters():
     param.requires_grad = False
