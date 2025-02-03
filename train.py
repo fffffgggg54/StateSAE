@@ -325,7 +325,7 @@ while(1):
         pred_states = [sae(state) for sae, state in zip(saeList, states)]
         losses = [0 for _ in available_gpus]
         for i, (pred, targ) in enumerate(zip(pred_states, states)):
-            losses[i] = losses[i] + criterion(pred, targ) 
+            losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
 
 
         
