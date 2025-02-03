@@ -281,7 +281,7 @@ class RWKVStateSAE(nn.Module):
                 #self.last_l1 = self.last_l1 + curr_l1
         return out
 '''
-batch_size = 12048
+batch_size = 2048
 
 
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
