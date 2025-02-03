@@ -16,7 +16,6 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 model_device = torch.device('cuda:0')
-sae_device = torch.device('cuda:0')
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-Pile-HF'
 model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
@@ -294,8 +293,9 @@ state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
 #sae = TopKRoutingBiasedSAEWithFullPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=4096*2, r=32).to(sae_device)
 #sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
 saeList = [TopKRoutingBiasedSAE(4096, 4096*8, k=128, lr=1e-4) for _ in range(12*12)]
+saeList = [x.to(available_gpus[i % len(available_gpus)]) for i, x in enumerate(saeList)]
 sae = sae.train()
-optimizer = optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=3e-3)
+optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=3e-3) for sae in saeList]
 #criterion = nn.MSELoss()
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
@@ -314,36 +314,38 @@ while(1):
     
     with torch.autocast(device_type="cuda"):
         with torch.no_grad():
+            # cuda:0
             state = state_loader.get_state_batch()
             if state is None:
                 break
             state = state.detach()
-            #state = state[8, :, 0].flatten(1)
-            state = state.transpose(0, 1).flatten(-2) # [B, L, n_h, d_h**2]
-            state = state.to(sae_device)
-        pred_state = sae(state)
-        mse_term = criterion(pred_state, state)
-        #l1_term = sae.last_l1
-        loss = mse_term #+ 0.1 * l1_term
+            states = state.transpose(1, 2).flatten(-2).flatten(0,1) # [L * n_h, B, d_h**2]
+            stateList = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
+        pred_states = [sae(state) for state in stateList]
+        losses = [0 for _ in len(available_gpus)]
+        [losses[i] = losses[i] + criterion(pred, targ) for i, (pred, targ) in enumerate(zip(pred_states, states))]
+
+
         
-    loss.backward()
-    optimizer.step()
-    optimizer.zero_grad(set_to_none=True)
+    [loss.backward() for loss in losses]
+    [optimizer.step() for optimizer in optimizers]
+    [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
+    
+    '''
     if sae.num_active_features > 128:
         sae.num_active_features = sae.num_active_features - 1
-    
+    '''
     if i % steps_per_printout == 0:
-        #print(f'mse loss: {mse_term.item()}, l1 loss: {l1_term.item()}, step time: {time.time() - start_time}')
-        print(f'tokens: {i * batch_size}, mse loss: {mse_term.item()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
+        print(f'tokens: {i * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
         start_time = time.time()
     if i % steps_per_histogram == 0:
-        plt.hist(sae.act_sum.add(eps).log(), 50, label='total acts')
+        [plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'sae {i} acts') for sae in saeList]
         plt.show()
         plt.clear_figure()
-        plt.hist(sae.act_ema.add(eps).log(), 50, label='running acts')
+        [plt.hist(sae.act_ema.cpu().add(eps).log(), 50, label='running acts') for sae in saeList]
         plt.show()
         plt.clear_figure()
-        sae.act_sum = sae.act_sum * 0
+        [sae.act_sum = sae.act_sum * 0 for sae in saeList]
 
 
 
