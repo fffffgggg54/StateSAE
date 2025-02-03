@@ -78,16 +78,17 @@ class TopKRoutingBiasedSAE(nn.Module):
             k=16,
             lr=3e-4,
             act_fn=nn.ReLU,
+            device='cpu',
     ):
         super().__init__()
-        self.encoder = nn.Linear(dim, hidden_features)
+        self.encoder = nn.Linear(dim, hidden_features, device = device)
         self.act  = act_fn()
-        self.decoder = nn.Linear(hidden_features, dim)
-        self.register_buffer('feature_bias', torch.zeros(hidden_features).float(), persistent=True)
+        self.decoder = nn.Linear(hidden_features, dim, device = device)
+        self.register_buffer('feature_bias', torch.zeros(hidden_features, device = device).float(), persistent=True)
         self.lr=lr
         self.num_active_features = k
-        self.register_buffer('act_sum', torch.zeros(hidden_features).float())
-        self.register_buffer('act_ema', torch.zeros(hidden_features).float())
+        self.register_buffer('act_sum', torch.zeros(hidden_features, device = device).float())
+        self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
         self.decay = 0.96
         self.eps = 1e-8
     
