@@ -287,7 +287,7 @@ class RWKVStateSAE(nn.Module):
 batch_size = 32
 
 
-available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
 #sae = RWKVStateSAE(state_loader.curr_state[1], 1024).to('cuda:0')
