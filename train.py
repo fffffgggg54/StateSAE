@@ -40,32 +40,33 @@ class StateLoader():
     def get_state_batch(self):
         with torch.no_grad():
             with torch.inference_mode():
-                # reset state where needed
-                for i, reset in enumerate([len(x) == 0 for x in self.slot_queue]):
-                    if reset:
-                        self.curr_state[0][:, i] *= 0
-                        self.curr_state[1][:, i] *= 0
-                        self.curr_state[2][:, i] *= 0
-                try:
-                    # get new sequence in slots with no remaining tokens left
-                    self.slot_queue = [self.tokenizer(next(self.dataset)['text'], return_tensors="pt")['input_ids'][0] if len(x) == 0 else x for x in self.slot_queue]
-                except:
-                    # case no more inputs
-                    return None
-                # build batch out of first token from each slot
-                batch = [x[0] for x in self.slot_queue]
-                batch = torch.stack(batch).unsqueeze(-1).to(self.model.device)
+                with torch.autocast(device_type="cuda"):
+                    # reset state where needed
+                    for i, reset in enumerate([len(x) == 0 for x in self.slot_queue]):
+                        if reset:
+                            self.curr_state[0][:, i] *= 0
+                            self.curr_state[1][:, i] *= 0
+                            self.curr_state[2][:, i] *= 0
+                    try:
+                        # get new sequence in slots with no remaining tokens left
+                        self.slot_queue = [self.tokenizer(next(self.dataset)['text'], return_tensors="pt")['input_ids'][0] if len(x) == 0 else x for x in self.slot_queue]
+                    except:
+                        # case no more inputs
+                        return None
+                    # build batch out of first token from each slot
+                    batch = [x[0] for x in self.slot_queue]
+                    batch = torch.stack(batch).unsqueeze(-1).to(self.model.device)
 
-                # remove first token from each slot
-                self.slot_queue = [x[1:] for x in self.slot_queue]
+                    # remove first token from each slot
+                    self.slot_queue = [x[1:] for x in self.slot_queue]
 
-                # forward model and get states
-                self.curr_state = self.model.forward(batch, state=self.curr_state).state
+                    # forward model and get states
+                    self.curr_state = self.model.forward(batch, state=self.curr_state).state
 
-                # V6: [Tensor(B, C, L), Tensor(B, n_h, d_h, d_h, L), Tensor(B, C, L)]
-                # V7: [Tensor(L, B, C), Tensor(L, B, n_h, d_h, d_h), Tensor(L, B, C)]
+                    # V6: [Tensor(B, C, L), Tensor(B, n_h, d_h, d_h, L), Tensor(B, C, L)]
+                    # V7: [Tensor(L, B, C), Tensor(L, B, n_h, d_h, d_h), Tensor(L, B, C)]
 
-                return self.curr_state[1]
+                    return self.curr_state[1]
 
 
 class TopKRoutingBiasedSAE(nn.Module):
