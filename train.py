@@ -10,17 +10,17 @@ import datasets
 import time
 import plotext as plt
 
-
-
-model_device = torch.device('cuda:0')
+batch_size = 2048
+available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-Pile-HF'
-model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
+models = [
+    AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True).to(x).eval() for x in available_gpus]
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-model = model.to(model_device)
-model = model.eval()
-for param in model.parameters():
-    param.requires_grad = False
+
+for model in models:
+    for param in model.parameters():
+        param.requires_grad = False
 
 # todo shuffle
 ds = datasets.load_dataset("JeanKaddour/minipile")
@@ -281,12 +281,9 @@ class RWKVStateSAE(nn.Module):
                 #self.last_l1 = self.last_l1 + curr_l1
         return out
 '''
-batch_size = 2048
 
 
-available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
-
-state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
+state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) for model in models]
 #sae = RWKVStateSAE(state_loader.curr_state[1], 1024).to('cuda:0')
 #sae = TopKRoutingBiasedSAEWithFullPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=4096*2, r=32).to(sae_device)
 #sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
@@ -308,44 +305,46 @@ curr_batch=0
 eps = 1e-8
 start_time = time.time()
 while(1):
-    curr_batch += 1
-    
     with torch.autocast(device_type="cuda"):
         with torch.no_grad():
-            # cuda:0
-            state = state_loader.get_state_batch()
-            if state is None:
-                break
-            state = state.detach() # [L, B, n_h, d_h, d_h]
-            state = state[:, :, :2]
-            states = state.transpose(1, 2).flatten(-2).flatten(0,1) # [L * n_h, B, d_h**2]
-            states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
-        pred_states = [sae(state) for sae, state in zip(saeList, states)]
-        losses = [0 for _ in available_gpus]
-        for i, (pred, targ) in enumerate(zip(pred_states, states)):
-            losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
-
-
+            state_all_loaders = [state_loader.get_state_batch() for state_loader in state_loaders]
+    for state in state_all_loaders:
+        curr_batch += 1
         
-    [loss.backward() for loss in losses]
-    [optimizer.step() for optimizer in optimizers]
-    [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
-    
-    '''
-    if sae.num_active_features > 128:
-        sae.num_active_features = sae.num_active_features - 1
-    '''
-    if curr_batch % steps_per_printout == 0:
-        print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
-        start_time = time.time()
-    if curr_batch % steps_per_histogram == 0:
-        for sae in saeList: plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'sae {i} acts')
-        plt.show()
-        plt.clear_figure()
-        for sae in saeList: plt.hist(sae.act_ema.cpu().add(eps).log(), 50, label='running acts')
-        plt.show()
-        plt.clear_figure()
-        for sae in saeList: sae.act_sum = sae.act_sum * 0
+        with torch.autocast(device_type="cuda"):
+            with torch.no_grad():
+                if state is None:
+                    break
+                state = state.detach() # [L, B, n_h, d_h, d_h]
+                state = state[:, :, :2]
+                states = state.transpose(1, 2).flatten(-2).flatten(0,1) # [L * n_h, B, d_h**2]
+                states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
+            pred_states = [sae(state) for sae, state in zip(saeList, states)]
+            losses = [0 for _ in available_gpus]
+            for i, (pred, targ) in enumerate(zip(pred_states, states)):
+                losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
+
+
+            
+        [loss.backward() for loss in losses]
+        [optimizer.step() for optimizer in optimizers]
+        [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
+        
+        '''
+        if sae.num_active_features > 128:
+            sae.num_active_features = sae.num_active_features - 1
+        '''
+        if curr_batch % steps_per_printout == 0:
+            print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
+            start_time = time.time()
+        if curr_batch % steps_per_histogram == 0:
+            for sae in saeList: plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'sae {i} acts')
+            plt.show()
+            plt.clear_figure()
+            for sae in saeList: plt.hist(sae.act_ema.cpu().add(eps).log(), 50, label='running acts')
+            plt.show()
+            plt.clear_figure()
+            for sae in saeList: sae.act_sum = sae.act_sum * 0
 
 
 
