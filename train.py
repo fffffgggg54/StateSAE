@@ -329,7 +329,10 @@ while(1):
         with torch.autocast(device_type="cuda"):
             with torch.no_grad():
 
-                states = [state_all_loaders[(sae_id + i) % len(available_gpus)][sae_id].to(available_gpus[i % len(available_gpus)], non_blocking=True) for sae_id in range(len(saeList))
+                states = [
+                    state_all_loaders[(sae_id + i) % len(available_gpus)][sae_id].to(available_gpus[i % len(available_gpus)], non_blocking=True)
+                    for sae_id in range(len(saeList))
+                ]
 
                 #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
             pred_states = [sae(state) for sae, state in zip(saeList, states)]
