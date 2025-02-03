@@ -322,7 +322,7 @@ while(1):
             state = state.detach()
             states = state.transpose(1, 2).flatten(-2).flatten(0,1) # [L * n_h, B, d_h**2]
             stateList = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
-        pred_states = [sae(state) for state in stateList]
+        pred_states = [sae(state) for sae, state in zip(saeList, stateList)]
         losses = [0 for _ in len(available_gpus)]
         for i, (pred, targ) in enumerate(zip(pred_states, states)):
             losses[i] = losses[i] + criterion(pred, targ) 
