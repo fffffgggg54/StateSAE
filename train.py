@@ -59,7 +59,7 @@ class StateLoader():
                 self.slot_queue = [x[1:] for x in self.slot_queue]
 
                 # forward model and get states
-                self.curr_state = model.forward(batch, state=self.curr_state).state
+                self.curr_state = self.model.forward(batch, state=self.curr_state).state
 
                 # V6: [Tensor(B, C, L), Tensor(B, n_h, d_h, d_h, L), Tensor(B, C, L)]
                 # V7: [Tensor(L, B, C), Tensor(L, B, n_h, d_h, d_h), Tensor(L, B, C)]
