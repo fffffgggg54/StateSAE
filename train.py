@@ -9,13 +9,14 @@ import pandas as pd
 import datasets
 import time
 import plotext as plt
+import copy
 
 batch_size = 1536
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-Pile-HF'
-models = [
-    AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True).to(x).eval() for x in available_gpus]
+model_cpu = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
+models = [copy.deepcopy(model_cpu).to(x).eval() for x in available_gpus]
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
 for model in models:
@@ -338,10 +339,10 @@ while(1):
             print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
             start_time = time.time()
         if curr_batch % steps_per_histogram == 0:
-            plt.hist(torch.stack[sae.act_sum.cpu()].sum(0).add(eps).log(), 50, label=f'total acts')
+            plt.hist(torch.stack[sae.act_sum.cpu() for sae in saeList].sum(0).add(eps).log(), 50, label=f'total acts')
             plt.show()
             plt.clear_figure()
-            plt.hist(torch.stack[sae.act_ema.cpu()].sum(0).add(eps).log(), 50, label='running acts')
+            plt.hist(torch.stack[sae.act_ema.cpu() for sae in saeList].sum(0).add(eps).log(), 50, label='running acts')
             plt.show()
             plt.clear_figure()
             for sae in saeList: sae.act_sum = sae.act_sum * 0
