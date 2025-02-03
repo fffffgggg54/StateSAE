@@ -338,10 +338,10 @@ while(1):
             print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
             start_time = time.time()
         if curr_batch % steps_per_histogram == 0:
-            for sae in saeList: plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'sae {i} acts')
+            plt.hist(torch.stack[sae.act_sum.cpu()].sum(0).add(eps).log(), 50, label=f'total acts')
             plt.show()
             plt.clear_figure()
-            for sae in saeList: plt.hist(sae.act_ema.cpu().add(eps).log(), 50, label='running acts')
+            plt.hist(torch.stack[sae.act_ema.cpu()].sum(0).add(eps).log(), 50, label='running acts')
             plt.show()
             plt.clear_figure()
             for sae in saeList: sae.act_sum = sae.act_sum * 0
