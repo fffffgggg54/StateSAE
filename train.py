@@ -281,7 +281,7 @@ class RWKVStateSAE(nn.Module):
                 #self.last_l1 = self.last_l1 + curr_l1
         return out
 '''
-batch_size = 1024
+batch_size = 12048
 
 
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
@@ -330,7 +330,6 @@ while(1):
     [loss.backward() for loss in losses]
     [optimizer.step() for optimizer in optimizers]
     [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
-    print(i)
     
     '''
     if sae.num_active_features > 128:
