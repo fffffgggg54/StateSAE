@@ -296,7 +296,7 @@ state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
 saeList = [TopKRoutingBiasedSAE(4096, 4096*4, k=128, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(12*12)]
 #saeList = [x.to(available_gpus[i % len(available_gpus)]) for i, x in enumerate(saeList)]
 saeList = [sae.train() for sae in saeList]
-optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=3e-3) for sae in saeList]
+optimizers = [optim.SGD(sae.parameters(), lr=1e-4, weight_decay=3e-3) for sae in saeList]
 #criterion = nn.MSELoss()
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
