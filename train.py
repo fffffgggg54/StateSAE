@@ -11,7 +11,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 1536
+batch_size = 32
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-Pile-HF'
@@ -308,7 +308,13 @@ start_time = time.time()
 while(1):
     with torch.autocast(device_type="cuda"):
         with torch.no_grad():
-            state_all_loaders = [state_loader.get_state_batch().detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1) for state_loader in state_loaders]
+            state_all_loaders = []
+            for state_loader in state_loaders:
+                state = state_loader.get_state_batch()
+                if state is None:
+                    print("no more data")
+                    break
+                state_all_loaders += [state.detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1)]
     '''
     for state in state_all_loaders:
         curr_batch += 1
