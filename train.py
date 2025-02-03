@@ -109,7 +109,7 @@ class TopKRoutingBiasedSAE(nn.Module):
             if self.training:
                 self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
                 feature_error = self.act_ema.mean().add(self.eps).log() - self.act_ema.add(self.eps).log()
-                self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 5
+                self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 6
 
         x = self.decoder(x)
         return x
@@ -308,7 +308,8 @@ start_time = time.time()
 while(1):
     with torch.autocast(device_type="cuda"):
         with torch.no_grad():
-            state_all_loaders = [state_loader.get_state_batch() for state_loader in state_loaders]
+            state_all_loaders = [state_loader.get_state_batch().detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1) for state_loader in state_loaders]
+    '''
     for state in state_all_loaders:
         curr_batch += 1
         
@@ -320,6 +321,17 @@ while(1):
                 state = state[:, :, :2]
                 states = state.transpose(1, 2).flatten(-2).flatten(0,1) # [L * n_h, B, d_h**2]
                 states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
+
+    '''
+    for i in range(len(available_gpus)):
+        curr_batch += 1
+        
+        with torch.autocast(device_type="cuda"):
+            with torch.no_grad():
+
+                states = [state_all_loaders[(sae_id + i) % len(available_gpus)][sae_id].to(available_gpus[i % len(available_gpus)], non_blocking=True) for sae_id in range(len(saeList))
+
+                #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
             pred_states = [sae(state) for sae, state in zip(saeList, states)]
             losses = [0 for _ in available_gpus]
             for i, (pred, targ) in enumerate(zip(pred_states, states)):
