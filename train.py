@@ -11,9 +11,6 @@ import time
 import plotext as plt
 
 
-torch.backends.cudnn.benchmark = True
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
 
 model_device = torch.device('cuda:0')
 
@@ -307,11 +304,11 @@ criterion = norm_MSE
 
 steps_per_printout = 25
 steps_per_histogram = 250
-i=0
+curr_batch=0
 eps = 1e-8
 start_time = time.time()
 while(1):
-    i += 1
+    curr_batch += 1
     
     with torch.autocast(device_type="cuda"):
         with torch.no_grad():
@@ -339,10 +336,10 @@ while(1):
     if sae.num_active_features > 128:
         sae.num_active_features = sae.num_active_features - 1
     '''
-    if i % steps_per_printout == 0:
-        print(f'tokens: {i * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
+    if curr_batch % steps_per_printout == 0:
+        print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
         start_time = time.time()
-    if i % steps_per_histogram == 0:
+    if curr_batch % steps_per_histogram == 0:
         for sae in saeList: plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'sae {i} acts')
         plt.show()
         plt.clear_figure()
