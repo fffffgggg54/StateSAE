@@ -8,7 +8,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import pandas as pd
 import datasets
 import time
-import soft_topk.soft_ot
 import plotext as plt
 
 
@@ -31,56 +30,6 @@ for param in model.parameters():
 ds = datasets.load_dataset("JeanKaddour/minipile")
 iterable_train_ds = iter(ds['train'])
 
-# https://gist.github.com/thomasahle/4c1e85e5842d01b007a8d10f5fed3a18
-'''
-from torch.func import vmap, grad
-from torch.autograd import Function
-
-sigmoid = torch.sigmoid
-sigmoid_grad = vmap(vmap(grad(sigmoid)))
-
-class TopK(Function):
-    @staticmethod
-    def forward(ctx, xs, k):
-        ts, ps = _find_ts(xs, k)
-        ctx.save_for_backward(xs, ts)
-        return ps
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        # Compute vjp, that is grad_output.T @ J.
-        xs, ts = ctx.saved_tensors
-        # Let v = sigmoid'(x + t)
-        v = sigmoid_grad(xs + ts)
-        s = v.sum(dim=1, keepdims=True)
-        # Jacobian is -vv.T/s + diag(v)
-        uv = grad_output * v
-        t1 = - uv.sum(dim=1, keepdims=True) * v / s
-        return t1 + uv, None
-
-@torch.no_grad()
-def _find_ts(xs, k):
-    b, n = xs.shape
-    assert 0 < k < n
-    # Lo should be small enough that all sigmoids are in the 0 area.
-    # Similarly Hi is large enough that all are in their 1 area.
-    lo = -xs.max(dim=1, keepdims=True).values - 10
-    hi = -xs.min(dim=1, keepdims=True).values + 10
-    for _ in range(64):
-        mid = (hi + lo)/2
-        mask = sigmoid(xs + mid).sum(dim=1) < k
-        lo[mask] = mid[mask]
-        hi[~mask] = mid[~mask]
-    ts = (lo + hi)/2
-    return ts, sigmoid(xs + ts)
-
-def scaled_softmax_topk(x, k):
-    x = (x/k).softmax(-1) * k
-    return x
-
-#topk = TopK.apply
-topk = scaled_softmax_topk
-'''
 class StateLoader():
     def __init__(self, dataset, model, tokenizer, batch_size):
         self.dataset = dataset
@@ -122,34 +71,13 @@ class StateLoader():
                 return self.curr_state[1]
 
 
-'''
-class SingleRWKVStateSAE(nn.Module):
-    def __init__(self, sample_state, hidden_features):
-        super().__init__()
-        L, B, n_h, d_h, _ = sample_state.shape
-        self.fc1 = nn.Linear(d_h**2, hidden_features)
-        self.act = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_features, d_h**2)
-        self.last_l1 = None
-    
-    def forward(self, x):
-        B, d_h, _ = x.shape
-        x = x.flatten(1)
-        x = self.fc1(x)
-        x = self.act(x)
-        #self.last_l1 = x.mean() + (x > 0).float().mean()
-        x = x * topk(x, 32)
-        x = self.fc2(x)
-        x = x.reshape(B, d_h, d_h)
-        return x
-'''
-
 class TopKRoutingBiasedSAE(nn.Module):
     def __init__(
             self,
             dim,
             hidden_features,
             k=16,
+            lr=3e-4,
             act_fn=nn.ReLU,
     ):
         super().__init__()
@@ -157,9 +85,12 @@ class TopKRoutingBiasedSAE(nn.Module):
         self.act  = act_fn()
         self.decoder = nn.Linear(hidden_features, dim)
         self.register_buffer('feature_bias', torch.zeros(hidden_features).float(), persistent=True)
-        self.lr=1e-3
+        self.lr=lr
         self.num_active_features = k
         self.register_buffer('act_sum', torch.zeros(hidden_features).float())
+        self.register_buffer('act_ema', torch.zeros(hidden_features).float())
+        self.decay = 0.96
+        self.eps = 1e-8
     
     def forward(self, x):
         # [B, C]
@@ -173,17 +104,18 @@ class TopKRoutingBiasedSAE(nn.Module):
         
         x = self.act(x)
 
-        
+        # desire log-normal distribution
         with torch.no_grad():
             feature_act = (mask > 0).sum(dim=0).float()
             self.act_sum += feature_act
             if self.training:
-                feature_error = feature_act.mean() - feature_act
-                self.feature_bias = self.feature_bias + self.lr * feature_error
+                self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
+                feature_error = self.act_ema.mean().add(self.eps).log() - self.act_ema.add(self.eps).log()
+                self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 5
 
         x = self.decoder(x)
         return x
-
+'''
 class TopKRoutingBiasedSAEWithPerStateLoRA(nn.Module):
     def __init__(
             self,
@@ -260,7 +192,8 @@ class TopKRoutingBiasedSAEWithPerStateLoRA(nn.Module):
         x = x1 + x2.squeeze(-2)
         x = x + self.bias_per_state
         return x
-
+'''
+'''
 class TopKRoutingBiasedSAEWithFullPerStateLoRA(nn.Module):
     def __init__(
             self,
@@ -328,7 +261,8 @@ class TopKRoutingBiasedSAEWithFullPerStateLoRA(nn.Module):
         x = x1 + x2.squeeze(-2)
         x = x + self.bias_per_state
         return x
-
+'''
+'''
 class RWKVStateSAE(nn.Module):
     def __init__(self, sample_state, hidden_features):
         super().__init__()
@@ -349,14 +283,17 @@ class RWKVStateSAE(nn.Module):
                 #curr_l1 = self.sae_list[l][h].last_l1
                 #self.last_l1 = self.last_l1 + curr_l1
         return out
-
+'''
 batch_size = 32
 
+
+available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 
 state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
 #sae = RWKVStateSAE(state_loader.curr_state[1], 1024).to('cuda:0')
 #sae = TopKRoutingBiasedSAEWithFullPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=4096*2, r=32).to(sae_device)
-sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
+#sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
+saeList = [TopKRoutingBiasedSAE(4096, 4096*8, k=128, lr=1e-4) for _ in range(12*12)]
 sae = sae.train()
 optimizer = optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=3e-3)
 #criterion = nn.MSELoss()
