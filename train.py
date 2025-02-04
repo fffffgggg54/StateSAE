@@ -96,6 +96,8 @@ class TopKRoutingBiasedSAE(nn.Module):
         x = x - self.decoder.bias
         x = self.encoder(x)
         
+        #topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
+
         topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
 
         mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
