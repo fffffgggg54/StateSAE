@@ -311,16 +311,17 @@ curr_batch=0
 eps = 1e-8
 start_time = time.time()
 while(1):
-    with torch.autocast(device_type="cuda"):
-        with torch.no_grad():
-            state_all_loaders = []
-            for state_loader in state_loaders:
+    
+    with torch.no_grad():
+        state_all_loaders = []
+        for state_loader in state_loaders:
+            with torch.autocast(device_type="cuda"):
                 state = state_loader.get_state_batch()
-                if state is None:
-                    print("no more data")
-                    break
-                #state_all_loaders += [state.detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1)]
-                state_all_loaders += [(state.detach()[:, :, :2].transpose(1, 2).flatten(0,1) @ torch.ones(64, 1, device = state.device)).flatten(-2)]
+            if state is None:
+                print("no more data")
+                break
+            #state_all_loaders += [state.detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1)]
+            state_all_loaders += [(state.detach()[:, :, :2].transpose(1, 2).flatten(0,1).float() @ torch.ones(64, 1, device = state.device)).flatten(-2)]
     '''
     for state in state_all_loaders:
         curr_batch += 1
@@ -338,17 +339,16 @@ while(1):
     for device_offset in range(len(available_gpus)):
         curr_batch += 1
         
-        with torch.autocast(device_type="cuda"):
-            with torch.no_grad():
+        with torch.no_grad():
 
-                states = [
-                    state_all_loaders[(sae_id + device_offset) % len(available_gpus)][sae_id].to(available_gpus[sae_id % len(available_gpus)], non_blocking=True)
-                    for sae_id in range(len(saeList))
-                ]
-                
-                
+            states = [
+                state_all_loaders[(sae_id + device_offset) % len(available_gpus)][sae_id].to(available_gpus[sae_id % len(available_gpus)], non_blocking=True)
+                for sae_id in range(len(saeList))
+            ]
+            
+            
 
-                #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
+            #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
         pred_states = [sae(state) for sae, state in zip(saeList, states)]
         losses = [0 for _ in available_gpus]
         for i, (pred, targ) in enumerate(zip(pred_states, states)):
