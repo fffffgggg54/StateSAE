@@ -350,12 +350,9 @@ while(1):
 
                 #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
             pred_states = [sae(state) for sae, state in zip(saeList, states)]
-            print(states[0].mean())
-            print(pred_states[0].mean())
-            print(states[0].shape)
-            losses = [0 for _ in available_gpus]
-            for i, (pred, targ) in enumerate(zip(pred_states, states)):
-                losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
+        losses = [0 for _ in available_gpus]
+        for i, (pred, targ) in enumerate(zip(pred_states, states)):
+            losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
 
 
             
