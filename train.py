@@ -354,9 +354,9 @@ while(1):
         for i, (pred, targ) in enumerate(zip(pred_states, states)):
             losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
 
-        print(states[0].mean())
-        print(pred_states[0].mean())
-        print(states[0].shape)
+        #print(states[0].mean())
+        #print(pred_states[0].mean())
+        #print(states[0].shape)
             
         [loss.backward() for loss in losses]
         [optimizer.step() for optimizer in optimizers]
