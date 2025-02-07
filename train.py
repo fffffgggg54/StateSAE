@@ -90,7 +90,6 @@ class TopKRoutingBiasedSAE(nn.Module):
         self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
         self.decay = 0.96
         self.eps = 1e-8
-        self.device = device
     
     def forward(self, x):
         # [B, C]
@@ -300,9 +299,6 @@ optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae 
 #schedulers = [optim.lr_scheduler.CyclicLR(optimizer, step_size_down=5000, base_lr=1e-5, max_lr=1e-3) for optimizer in optimizers]
 #criterion = nn.MSELoss()
 
-
-streams = [torch.cuda.Stream(device=sae.device) for sae in saeList]
-
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
 # via https://github.com/openai/sparse_autoencoder/blob/main/sparse_autoencoder/loss.py 
 def norm_MSE(pred, targ): return (((pred - targ) ** 2).mean(dim=-1) / (targ**2).mean(dim=-1)).mean()
@@ -314,12 +310,6 @@ steps_per_histogram = 250
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
-
-def run_sae_with_stream(sae, state, stream):
-    with torch.cuda.stream(stream):
-        return sae(state)
-    
-
 while(1):
     
     with torch.no_grad():
@@ -360,9 +350,8 @@ while(1):
 
             #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
             
-        torch.cuda.synchronize()
-        pred_states = [run_sae_with_stream(sae, state, stream) for sae, state, stream in zip(saeList, states, streams)]
-        torch.cuda.synchronize()
+        
+        pred_states = [sae(state) for sae, state in zip(saeList, states)]
         losses = [0 for _ in available_gpus]
         for i, (pred, targ) in enumerate(zip(pred_states, states)):
             losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
