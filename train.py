@@ -90,6 +90,7 @@ class TopKRoutingBiasedSAE(nn.Module):
         self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
         self.decay = 0.96
         self.eps = 1e-8
+        self.device = device
     
     def forward(self, x):
         # [B, C]
