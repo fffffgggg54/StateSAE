@@ -98,6 +98,56 @@ class TopKRoutingBiasedSAE(nn.Module):
         
         #topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
 
+        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
+
+        mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
+        x = x * mask
+        
+        x = self.act(x)
+
+        # desire log-normal distribution
+        with torch.no_grad():
+            feature_act = (mask > 0).sum(dim=0).float()
+            self.act_sum += feature_act
+            if self.training:
+                self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
+                feature_error = self.act_ema.mean().add(self.eps).log() - self.act_ema.add(self.eps).log()
+                self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 6
+
+        x = self.decoder(x)
+        return x
+        
+        
+class DenseTopKSAE(nn.Module):
+    def __init__(
+            self,
+            dim,
+            hidden_features,
+            replicas,
+            k=16,
+            act_fn=nn.ReLU,
+            device='cpu',
+    ):
+        super().__init__()
+        #self.encoder = nn.Linear(dim, hidden_features, device = device)
+        self.encoder_w = nn.Parameter(data=torch.randn(replicas, dim, hidden_features, device=device) * 0.02)
+        self.encoder_b = nn.Parameter(data=torch.zeros(replicas, hidden_features, device=device))
+        self.act = act_fn()
+        self.decoder_w = nn.Parameter(data=torch.randn(replicas, hidden_features, dim, device=device) * 0.02)
+        self.decoder_b = nn.Parameter(data=torch.zeros(replicas, dim, device=device))
+        self.num_active_features = k
+        self.register_buffer('act_sum', torch.zeros(hidden_features, device = device).float())
+        self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
+        self.decay = 0.96
+        self.eps = 1e-8
+    
+    def forward(self, x):
+        # [B, C]
+        x = x - self.decoder.bias
+        x = self.encoder(x)
+        
+        #topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
+
         topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
 
         mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
