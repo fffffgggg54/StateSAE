@@ -182,7 +182,7 @@ class DenseTopKSAE(nn.Module):
             if self.training:
                 self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
 
-        x = x @ self.decoder_w
+        x = torch.einsum('brd,rcd->brc', x, self.decoder_w)
         x = x + self.decoder_b
         return x.squeeze(-1)
 '''
