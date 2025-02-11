@@ -10,7 +10,9 @@ model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 model = model.eval()
 
-ds = datasets.load_dataset("JeanKaddour/minipile")
+#ds = datasets.load_dataset("JeanKaddour/minipile")
+ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train').shuffle()
+
 iterable_train_ds = iter(ds['train'])
 device = torch.device('cuda:0')
 #device = torch.device('cpu')
