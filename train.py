@@ -165,7 +165,7 @@ class DenseTopKSAE(nn.Module):
         # [B, R, C]
         x = x - self.decoder_b
         #x = x @ self.encoder_w
-        x = torch.einsum('brc,rcd->brd', x, self.encoder_w)
+        x = torch.einsum('brc,rdc->brd', x, self.encoder_w)
         x = x + self.encoder_b
         
         topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-2, sorted=False)
