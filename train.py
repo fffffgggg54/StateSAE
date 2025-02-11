@@ -463,13 +463,13 @@ while(1):
             for sae in saeList: sae.act_sum = sae.act_sum * 0
         '''
         if curr_batch % steps_per_histogram == 0:
-            plt.hist(torch.stack([sae.act_sum.cpu() for sae in saeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
+            plt.hist(torch.stack([sae.act_sum.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
             plt.show()
             plt.clear_figure()
-            plt.hist(torch.stack([sae.act_ema.cpu() for sae in saeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
+            plt.hist(torch.stack([sae.act_ema.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
             plt.show()
             plt.clear_figure()
-            for sae in saeList: sae.act_sum = sae.act_sum * 0
+            for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
 
 
 
