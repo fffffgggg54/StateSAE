@@ -143,6 +143,7 @@ class DenseTopKSAE(nn.Module):
      
     @classmethod
     def from_SAE_list(self, sae_list):
+        super().__init__()
         self.encoder_w = nn.Parameter(torch.stack([sae.encoder.weight for sae in sae_list]))
         self.encoder_b = nn.Parameter(torch.stack([sae.encoder.bias for sae in sae_list]))
         
