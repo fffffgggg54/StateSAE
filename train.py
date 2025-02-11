@@ -136,19 +136,33 @@ class DenseTopKSAE(nn.Module):
         self.decoder_w = nn.Parameter(data=torch.randn(replicas, hidden_features, dim, device=device) * 0.02)
         self.decoder_b = nn.Parameter(data=torch.zeros(replicas, dim, device=device))
         self.num_active_features = k
-        self.register_buffer('act_sum', torch.zeros(hidden_features, device = device).float())
-        self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
+        self.register_buffer('act_sum', torch.zeros(replicas, hidden_features, device = device).float())
+        self.register_buffer('act_ema', torch.zeros(replicas, hidden_features, device = device).float())
         self.decay = 0.96
         self.eps = 1e-8
+        
+    def from_SAE_list(sae_list):
+        self.encoder_w = nn.Parameter(torch.stack([sae.encoder.weight for sae in sae_list]))
+        self.encoder_b = nn.Parameter(torch.stack([sae.encoder.bias for sae in sae_list]))
+        
+        self.act = sae_list[0].act
+        self.num_active_features = sae_list[0].num_active_features
+        
+        self.decoder_w = nn.Parameter(torch.stack([sae.decoder.weight for sae in sae_list]))
+        self.decoder_b = nn.Parameter(torch.stack([sae.decoder.bias for sae in sae_list]))
+        
+        self.register_buffer('act_sum', torch.stack([sae.act_sum for sae in sae_list]))
+        self.register_buffer('act_ema', torch.stack([sae.act_ema for sae in sae_list]))
+        
+        self.decay = sae_list[0].decay
+        self.eps = sae_list[0].eps
     
     def forward(self, x):
-        # [B, C]
-        x = x - self.decoder.bias
-        x = self.encoder(x)
+        # [B, R, C]
+        x = x - self.decoder_b
+        x = x @ self.encoder_w + self.encoder_b
         
-        #topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
-
-        topk_values, topk_indices = torch.topk(x + self.feature_bias.detach(), self.num_active_features, dim=-1, sorted=False)
+        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
 
         mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
         x = x * mask
@@ -161,10 +175,8 @@ class DenseTopKSAE(nn.Module):
             self.act_sum += feature_act
             if self.training:
                 self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
-                feature_error = self.act_ema.mean().add(self.eps).log() - self.act_ema.add(self.eps).log()
-                self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 6
 
-        x = self.decoder(x)
+        x = x @ self.decoder_w + self.decoder_b
         return x
 '''
 class TopKRoutingBiasedSAEWithPerStateLoRA(nn.Module):
@@ -342,12 +354,20 @@ state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) fo
 #sae = TopKRoutingBiasedSAEWithFullPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=4096*2, r=32).to(sae_device)
 #sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
 #saeList = [TopKRoutingBiasedSAE(4096, 4096*4, k=128, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(2*12)]
-saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(12*12)]
+#saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(12*12)]
+saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = torch.device('cpu')]) for i in range(12*12)]
+
 #saeList = [x.to(available_gpus[i % len(available_gpus)]) for i, x in enumerate(saeList)]
-saeList = [sae.train() for sae in saeList]
-optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in saeList]
+#saeList = [sae.train() for sae in saeList]
+
+#optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in saeList]
 #schedulers = [optim.lr_scheduler.CyclicLR(optimizer, step_size_down=5000, base_lr=1e-5, max_lr=1e-3) for optimizer in optimizers]
 #criterion = nn.MSELoss()
+
+denseSaeList = [saeList[i:i + 18] for i in range(0, 144, 18)]
+optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
+
+
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
 # via https://github.com/openai/sparse_autoencoder/blob/main/sparse_autoencoder/loss.py 
@@ -371,6 +391,7 @@ while(1):
                 print("no more data")
                 break
             #state_all_loaders += [state.detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1)]
+            # [L * n_h, B, d_h]
             state_all_loaders += [(state.detach()[:, :, :12].transpose(1, 2).flatten(0,1).float() @ torch.ones(64, 1, device = state.device)).flatten(-2)]
     '''
     for state in state_all_loaders:
@@ -390,13 +411,15 @@ while(1):
         curr_batch += 1
         
         with torch.no_grad():
-
+            '''
             states = [
                 state_all_loaders[(sae_id + device_offset) % len(available_gpus)][sae_id].to(available_gpus[sae_id % len(available_gpus)], non_blocking=True)
                 for sae_id in range(len(saeList))
             ]
-            
-            
+            '''
+            # D * [R, B, d_h]
+            states = [state_all_loaders[(d + device_offset) % len(available_gpus)][i:i + 18].to(available_gpus[d], non_blocking=True) for d, i in enumerate(range(0, 144, 18))]
+            states = [state.transpose(0, 1) for state in states]
 
             #states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
             
@@ -422,11 +445,21 @@ while(1):
         if curr_batch % steps_per_printout == 0:
             print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
             start_time = time.time()
+        '''
         if curr_batch % steps_per_histogram == 0:
             plt.hist(torch.stack([sae.act_sum.cpu() for sae in saeList]).sum(0).add(eps).log(), 50, label=f'total acts')
             plt.show()
             plt.clear_figure()
             plt.hist(torch.stack([sae.act_ema.cpu() for sae in saeList]).sum(0).add(eps).log(), 50, label='running acts')
+            plt.show()
+            plt.clear_figure()
+            for sae in saeList: sae.act_sum = sae.act_sum * 0
+        '''
+        if curr_batch % steps_per_histogram == 0:
+            plt.hist(torch.stack([sae.act_sum.cpu() for sae in saeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
+            plt.show()
+            plt.clear_figure()
+            plt.hist(torch.stack([sae.act_ema.cpu() for sae in saeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
             plt.show()
             plt.clear_figure()
             for sae in saeList: sae.act_sum = sae.act_sum * 0
