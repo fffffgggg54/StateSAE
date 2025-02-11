@@ -355,7 +355,7 @@ state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) fo
 #sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
 #saeList = [TopKRoutingBiasedSAE(4096, 4096*4, k=128, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(2*12)]
 #saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(12*12)]
-saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = torch.device('cpu')]) for i in range(12*12)]
+saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = torch.device('cpu')) for i in range(12*12)]
 
 #saeList = [x.to(available_gpus[i % len(available_gpus)]) for i, x in enumerate(saeList)]
 #saeList = [sae.train() for sae in saeList]
