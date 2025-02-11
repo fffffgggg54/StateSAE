@@ -55,7 +55,7 @@ class StateLoader():
                         return None
                     # build batch out of first token from each slot
                     batch = [x[0] for x in self.slot_queue]
-                    batch = torch.stack(batch).unsqueeze(-1).to(self.model.device)
+                    batch = torch.stack(batch).unsqueeze(-1).to(self.model.device, non_blocking=True)
 
                     # remove first token from each slot
                     self.slot_queue = [x[1:] for x in self.slot_queue]
@@ -168,7 +168,11 @@ class DenseTopKSAE(nn.Module):
         x = torch.einsum('brc,rdc->brd', x, self.encoder_w)
         x = x + self.encoder_b
         
-        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
+        #topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
+        with torch.no_grad():
+            decoder_norm = (decoder_w ** 2).sum(-1)
+        
+        topk_values, topk_indices = torch.topk(x, self.num_active_features * decoder_norm, dim=-1, sorted=False)
 
         mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
         x = x * mask
