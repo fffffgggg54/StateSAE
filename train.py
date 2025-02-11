@@ -170,7 +170,7 @@ class DenseTopKSAE(nn.Module):
         
         #topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
         with torch.no_grad():
-            decoder_norm = (decoder_w ** 2).sum(-1)
+            decoder_norm = (self.decoder_w ** 2).sum(-1)
         
         topk_values, topk_indices = torch.topk(x, self.num_active_features * decoder_norm, dim=-1, sorted=False)
 
