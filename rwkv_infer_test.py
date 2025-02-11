@@ -31,7 +31,7 @@ batch_size = 256
 class StateLoader():
     def __init__(self, dataset, model, tokenizer, batch_size):
         self.dataset = dataset
-        self.loader = DataLoader(dataset, num_workers=8, prefetch_factor=8, batch_size=1)
+        self.loader = iter(DataLoader(dataset, num_workers=8, prefetch_factor=8, batch_size=1))
         self.model = model
         self.tokenizer = tokenizer
         self.batch_size = batch_size
