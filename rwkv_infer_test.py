@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
 import time
-from torch.utils.data import DataLoader
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-Pile-HF'
 model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
@@ -31,7 +30,6 @@ batch_size = 2048
 class StateLoader():
     def __init__(self, dataset, model, tokenizer, batch_size):
         self.dataset = dataset
-        self.loader = iter(DataLoader(dataset, num_workers=8, prefetch_factor=8, batch_size=1))
         self.model = model
         self.tokenizer = tokenizer
         self.batch_size = batch_size
@@ -49,7 +47,7 @@ class StateLoader():
                     self.curr_state[2][:, i] *= 0
 
             # get new sequence in slots with no remaining tokens left
-            self.slot_queue = [self.tokenizer(next(self.loader)['text'], return_tensors="pt")['input_ids'][0] if len(x) == 0 else x for x in self.slot_queue]
+            self.slot_queue = [self.tokenizer(next(self.dataset)['text'], return_tensors="pt")['input_ids'][0] if len(x) == 0 else x for x in self.slot_queue]
 
             # build batch out of first token from each slot
             batch = [x[0] for x in self.slot_queue]
@@ -67,8 +65,7 @@ class StateLoader():
         return self.curr_state[1]
 
 
-#state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
-state_loader = StateLoader(ds, model, tokenizer, batch_size)
+state_loader = StateLoader(iterable_train_ds, model, tokenizer, batch_size)
 
 while(1):
     start_time = time.time()

@@ -24,7 +24,9 @@ for model in models:
         param.requires_grad = False
 
 # todo shuffle
-ds = datasets.load_dataset("JeanKaddour/minipile")
+#ds = datasets.load_dataset("JeanKaddour/minipile")
+ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train').shuffle()
+
 iterable_train_ds = iter(ds['train'])
 
 class StateLoader():
