@@ -145,14 +145,14 @@ class DenseTopKSAE(nn.Module):
     
     def __init__(self, sae_list):
         super().__init__()
-        self.encoder_w = nn.Parameter(torch.stack([sae.encoder.weight for sae in sae_list]).unsqueeze(0))
-        self.encoder_b = nn.Parameter(torch.stack([sae.encoder.bias for sae in sae_list]).unsqueeze(-1))
+        self.encoder_w = nn.Parameter(torch.stack([sae.encoder.weight for sae in sae_list]))
+        self.encoder_b = nn.Parameter(torch.stack([sae.encoder.bias for sae in sae_list]))
         
         self.act = sae_list[0].act
         self.num_active_features = sae_list[0].num_active_features
         
-        self.decoder_w = nn.Parameter(torch.stack([sae.decoder.weight for sae in sae_list]).unsqueeze(0))
-        self.decoder_b = nn.Parameter(torch.stack([sae.decoder.bias for sae in sae_list]).unsqueeze(-1))
+        self.decoder_w = nn.Parameter(torch.stack([sae.decoder.weight for sae in sae_list]))
+        self.decoder_b = nn.Parameter(torch.stack([sae.decoder.bias for sae in sae_list]))
         
         self.register_buffer('act_sum', torch.stack([sae.act_sum for sae in sae_list]))
         self.register_buffer('act_ema', torch.stack([sae.act_ema for sae in sae_list]))
@@ -163,8 +163,9 @@ class DenseTopKSAE(nn.Module):
     
     def forward(self, x):
         # [B, R, C]
-        x = x.unsqueeze(-1) - self.decoder_b
-        x = x @ self.encoder_w
+        x = x - self.decoder_b
+        #x = x @ self.encoder_w
+        x = torch.einsum('brc,rcd->brd', x, self.encoder_w)
         x = x + self.encoder_b
         
         topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-2, sorted=False)
