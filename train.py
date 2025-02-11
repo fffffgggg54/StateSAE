@@ -168,11 +168,7 @@ class DenseTopKSAE(nn.Module):
         x = torch.einsum('brc,rdc->brd', x, self.encoder_w)
         x = x + self.encoder_b
         
-        #topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
-        with torch.no_grad():
-            decoder_norm = (self.decoder_w ** 2).sum(-2)
-        
-        topk_values, topk_indices = torch.topk(x * decoder_norm, self.num_active_features, dim=-1, sorted=False)
+        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
 
         mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
         x = x * mask
