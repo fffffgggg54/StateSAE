@@ -25,7 +25,7 @@ torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
-batch_size = 256
+batch_size = 2048
 
 
 class StateLoader():
