@@ -140,7 +140,8 @@ class DenseTopKSAE(nn.Module):
         self.register_buffer('act_ema', torch.zeros(replicas, hidden_features, device = device).float())
         self.decay = 0.96
         self.eps = 1e-8
-        
+     
+    @classmethod
     def from_SAE_list(self, sae_list):
         self.encoder_w = nn.Parameter(torch.stack([sae.encoder.weight for sae in sae_list]))
         self.encoder_b = nn.Parameter(torch.stack([sae.encoder.bias for sae in sae_list]))
@@ -156,6 +157,8 @@ class DenseTopKSAE(nn.Module):
         
         self.decay = sae_list[0].decay
         self.eps = sae_list[0].eps
+        
+        return self
     
     def forward(self, x):
         # [B, R, C]
