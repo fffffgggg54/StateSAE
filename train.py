@@ -164,7 +164,8 @@ class DenseTopKSAE(nn.Module):
     def forward(self, x):
         # [B, R, C]
         x = x - self.decoder_b
-        x = x @ self.encoder_w + self.encoder_b
+        x = x.unsqueeze(-1) @ self.encoder_w.unsqueeze(0)
+        x = x.squeeze(-1) + self.encoder_b
         
         topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
 
@@ -180,7 +181,8 @@ class DenseTopKSAE(nn.Module):
             if self.training:
                 self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
 
-        x = x @ self.decoder_w + self.decoder_b
+        x = x.unsqueeze(-1) @ self.decoder_w.unsqueeze(0)
+        x = x.squeeze(-1) + self.decoder_b
         return x
 '''
 class TopKRoutingBiasedSAEWithPerStateLoRA(nn.Module):
