@@ -13,7 +13,7 @@ model = model.eval()
 #ds = datasets.load_dataset("JeanKaddour/minipile")
 ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train').shuffle()
 
-iterable_train_ds = iter(ds['train'])
+iterable_train_ds = iter(ds)
 device = torch.device('cuda:0')
 #device = torch.device('cpu')
 model = model.to(device)
