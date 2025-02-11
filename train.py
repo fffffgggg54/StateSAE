@@ -25,7 +25,8 @@ for model in models:
 
 # todo shuffle
 #ds = datasets.load_dataset("JeanKaddour/minipile", split='train')
-ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train').shuffle()
+ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
+ds = ds.shuffle().map(lambda x: tokenizer(s['text'], return_tensors="pt")['input_ids'][0], num_proc=8)
 
 iterable_train_ds = iter(ds)
 
@@ -51,7 +52,7 @@ class StateLoader():
                             self.curr_state[2][:, i] *= 0
                     try:
                         # get new sequence in slots with no remaining tokens left
-                        self.slot_queue = [self.tokenizer(next(self.dataset)['text'], return_tensors="pt")['input_ids'][0] if len(x) == 0 else x for x in self.slot_queue]
+                        self.slot_queue = [next(self.dataset) if len(x) == 0 else x for x in self.slot_queue]
                     except:
                         # case no more inputs
                         return None
