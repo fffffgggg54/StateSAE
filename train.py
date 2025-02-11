@@ -24,10 +24,10 @@ for model in models:
         param.requires_grad = False
 
 # todo shuffle
-#ds = datasets.load_dataset("JeanKaddour/minipile")
+#ds = datasets.load_dataset("JeanKaddour/minipile", split='train')
 ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train').shuffle()
 
-iterable_train_ds = iter(ds['train'])
+iterable_train_ds = iter(ds)
 
 class StateLoader():
     def __init__(self, dataset, model, tokenizer, batch_size):
