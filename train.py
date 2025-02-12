@@ -24,9 +24,9 @@ for model in models:
         param.requires_grad = False
 
 # todo shuffle
-#ds = datasets.load_dataset("JeanKaddour/minipile", split='train')
-ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
-ds = ds.shuffle().map(lambda x: tokenizer(s['text'], return_tensors="pt")['input_ids'][0])
+ds = datasets.load_dataset("JeanKaddour/minipile", split='train')
+#ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
+ds = ds.shuffle().map(lambda x: tokenizer(s['text'], return_tensors="pt")['input_ids'][0], num_proc=4)
 
 iterable_train_ds = iter(ds)
 
@@ -365,7 +365,7 @@ state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) fo
 #sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
 #saeList = [TopKRoutingBiasedSAE(4096, 4096*4, k=128, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(2*12)]
 #saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(12*12)]
-saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = torch.device('cpu')) for i in range(12*12)]
+saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.device('cpu')) for i in range(12*12)]
 
 #saeList = [x.to(available_gpus[i % len(available_gpus)]) for i, x in enumerate(saeList)]
 #saeList = [sae.train() for sae in saeList]
@@ -447,11 +447,13 @@ while(1):
         [optimizer.step() for optimizer in optimizers]
         [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
         #[scheduler.step() for scheduler in schedulers]
+        if curr_batch % 4 == 0:
+            for sae in denseSaeList:
+                if sae.num_active_features > 16
+                    sae.num_active_features = sae.num_active_features - 1
+            print(f"k = {denseSaeList[0].num_active_features}")
+                
         
-        '''
-        if sae.num_active_features > 128:
-            sae.num_active_features = sae.num_active_features - 1
-        '''
         if curr_batch % steps_per_printout == 0:
             print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
             start_time = time.time()
