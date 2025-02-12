@@ -448,10 +448,12 @@ while(1):
         [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
         #[scheduler.step() for scheduler in schedulers]
         if curr_batch % 4 == 0:
+            do_print=False
             for sae in denseSaeList:
                 if sae.num_active_features > 16:
+                    do_print=True
                     sae.num_active_features = sae.num_active_features - 1
-            print(f"k = {denseSaeList[0].num_active_features}")
+            if do_print: print(f"k = {denseSaeList[0].num_active_features}")
                 
         
         if curr_batch % steps_per_printout == 0:
