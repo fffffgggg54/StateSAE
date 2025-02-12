@@ -134,7 +134,15 @@ class DenseTopKSAE(nn.Module):
     ):
         super().__init__()
         #self.encoder = nn.Linear(dim, hidden_features, device = device)
-        rand_w = torch.randn(replicas, hidden_features, dim, device=device) * 0.02
+        # kaiming uniform
+        fan=dim
+        gain = 2.0**0.5
+        std = gain / (fan**0.5)
+        bound = (3.0 ** 0.5) * std
+        
+        rand_w = torch.empty(replicas, hidden_features, dim, device=device)
+        with torch.no_grad():
+            rand_w = nn.init.uniform_(-bound, bound) 
         self.encoder_w = nn.Parameter(data=rand_w)
         self.encoder_b = nn.Parameter(data=torch.zeros(replicas, hidden_features, device=device))
         self.act = act_fn()
