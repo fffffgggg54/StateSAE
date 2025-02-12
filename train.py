@@ -142,7 +142,7 @@ class DenseTopKSAE(nn.Module):
         
         rand_w = torch.empty(replicas, hidden_features, dim, device=device)
         with torch.no_grad():
-            rand_w = nn.init.uniform_(-bound, bound) 
+            rand_w = nn.init.uniform_(rand_w, -bound, bound) 
         self.encoder_w = nn.Parameter(data=rand_w)
         self.encoder_b = nn.Parameter(data=torch.zeros(replicas, hidden_features, device=device))
         self.act = act_fn()
