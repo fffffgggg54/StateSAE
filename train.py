@@ -26,7 +26,7 @@ for model in models:
 # todo shuffle
 ds = datasets.load_dataset("JeanKaddour/minipile", split='train')
 #ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
-ds = ds.shuffle().map(lambda x: tokenizer(x['text'], return_tensors="pt"), num_proc=4)
+ds = ds.shuffle().map(lambda x: tokenizer(x['text'], return_tensors="pt"), num_proc=42, keep_in_memory=True)
 
 iterable_train_ds = iter(ds)
 
