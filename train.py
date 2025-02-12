@@ -377,7 +377,7 @@ state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) fo
 #criterion = nn.MSELoss()
 
 #denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
-denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=16, device=gpu).to(gpu) for gpu in available_gpus]
+denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
 optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
 
 
@@ -451,12 +451,13 @@ while(1):
         [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
         #[scheduler.step() for scheduler in schedulers]
         if curr_batch % 4 == 0:
-            do_print=False
+            do_print=True
             for sae in denseSaeList:
                 if sae.num_active_features > 16:
-                    do_print=True
                     sae.num_active_features = sae.num_active_features - 1
-            if do_print: print(f"k = {denseSaeList[0].num_active_features}")
+                    if do_print == True:
+                        do_print=False
+                        print(f"k = {denseSaeList[0].num_active_features}")
                 
         
         if curr_batch % steps_per_printout == 0:
