@@ -122,7 +122,7 @@ class TopKRoutingBiasedSAE(nn.Module):
         
         
 class DenseTopKSAE(nn.Module):
-    '''
+    
     def __init__(
             self,
             dim,
@@ -134,18 +134,19 @@ class DenseTopKSAE(nn.Module):
     ):
         super().__init__()
         #self.encoder = nn.Linear(dim, hidden_features, device = device)
-        self.encoder_w = nn.Parameter(data=torch.randn(replicas, dim, hidden_features, device=device) * 0.02)
+        rand_w = torch.randn(replicas, hidden_features, dim, device=device) * 0.02
+        self.encoder_w = nn.Parameter(data=rand_w)
         self.encoder_b = nn.Parameter(data=torch.zeros(replicas, hidden_features, device=device))
         self.act = act_fn()
-        self.decoder_w = nn.Parameter(data=torch.randn(replicas, hidden_features, dim, device=device) * 0.02)
+        self.decoder_w = nn.Parameter(data=rand_w.transpose(-1, -2))
         self.decoder_b = nn.Parameter(data=torch.zeros(replicas, dim, device=device))
         self.num_active_features = k
         self.register_buffer('act_sum', torch.zeros(replicas, hidden_features, device = device).float())
         self.register_buffer('act_ema', torch.zeros(replicas, hidden_features, device = device).float())
         self.decay = 0.96
         self.eps = 1e-8
-     '''
     
+    '''
     def __init__(self, sae_list):
         super().__init__()
         self.encoder_w = nn.Parameter(torch.stack([sae.encoder.weight for sae in sae_list]))
@@ -163,6 +164,7 @@ class DenseTopKSAE(nn.Module):
         self.decay = sae_list[0].decay
         self.eps = sae_list[0].eps
         
+    '''
     
     def forward(self, x):
         # [B, R, C]
@@ -365,7 +367,7 @@ state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) fo
 #sae = TopKRoutingBiasedSAEWithPerStateLoRA(4096, 4096 * 16, num_layers = 12, num_heads = 12, k=256, r=512, lr=1e-4).to(sae_device)
 #saeList = [TopKRoutingBiasedSAE(4096, 4096*4, k=128, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(2*12)]
 #saeList = [TopKRoutingBiasedSAE(64, 64*128, k=16, lr=1e-4, device = available_gpus[i % len(available_gpus)]) for i in range(12*12)]
-saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.device('cpu')) for i in range(12*12)]
+#saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.device('cpu')) for i in range(12*12)]
 
 #saeList = [x.to(available_gpus[i % len(available_gpus)]) for i, x in enumerate(saeList)]
 #saeList = [sae.train() for sae in saeList]
@@ -374,7 +376,8 @@ saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.dev
 #schedulers = [optim.lr_scheduler.CyclicLR(optimizer, step_size_down=5000, base_lr=1e-5, max_lr=1e-3) for optimizer in optimizers]
 #criterion = nn.MSELoss()
 
-denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
+#denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
+denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=16, device=gpu).to(gpu) for gpu in available_gpus]
 optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
 
 
