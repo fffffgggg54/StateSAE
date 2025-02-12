@@ -122,7 +122,7 @@ class TopKRoutingBiasedSAE(nn.Module):
         
         
 class DenseTopKSAE(nn.Module):
-    
+    ''''
     def __init__(
             self,
             dim,
@@ -166,7 +166,7 @@ class DenseTopKSAE(nn.Module):
         self.decay = sae_list[0].decay
         self.eps = sae_list[0].eps
         
-    '''
+    
     
     def forward(self, x):
         # [B, R, C]
@@ -378,8 +378,8 @@ state_loaders = [StateLoader(iterable_train_ds, model, tokenizer, batch_size) fo
 #schedulers = [optim.lr_scheduler.CyclicLR(optimizer, step_size_down=5000, base_lr=1e-5, max_lr=1e-3) for optimizer in optimizers]
 #criterion = nn.MSELoss()
 
-#denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
-denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
+denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
+#denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
 optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
 
 
