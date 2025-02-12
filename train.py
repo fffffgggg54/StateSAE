@@ -449,7 +449,7 @@ while(1):
         #[scheduler.step() for scheduler in schedulers]
         if curr_batch % 4 == 0:
             for sae in denseSaeList:
-                if sae.num_active_features > 16
+                if sae.num_active_features > 16:
                     sae.num_active_features = sae.num_active_features - 1
             print(f"k = {denseSaeList[0].num_active_features}")
                 
