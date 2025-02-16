@@ -24,7 +24,7 @@ for model in models:
         param.requires_grad = False
 
 # todo shuffle
-ds = datasets.load_dataset("JeanKaddour/minipile", split='train')
+ds = datasets.load_dataset("JeanKaddour/minipile", split='train') # 1337497600 tokens
 #ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
 ds = ds.shuffle()
 
