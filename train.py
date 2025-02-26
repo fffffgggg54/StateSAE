@@ -383,8 +383,8 @@ saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.dev
 
 denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
 #denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
-optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
-#optimizers = [pytorch_optimizer.Lamb(sae.parameters(), lr=1e-3, weight_decay=1e-4) for sae in denseSaeList]
+#optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
+optimizers = [pytorch_optimizer.Lamb(sae.parameters(), lr=1e-3, weight_decay=1e-4) for sae in denseSaeList]
 
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
@@ -395,7 +395,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 20
 steps_per_histogram = 20
-grad_accum_epochs = 8
+grad_accum_epochs = 32
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
@@ -470,17 +470,19 @@ while(1):
             #[scheduler.step() for scheduler in schedulers]
             
             # histograms
-            plt.hist(torch.stack([sae.act_sum.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
-            plt.show()
-            plt.clear_figure()
-            plt.hist(torch.stack([sae.act_ema.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
-            plt.show()
-            plt.clear_figure()
-            for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
+            if opt_steps % steps_per_histogram == 0:
+                plt.hist(torch.stack([sae.act_sum.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
+                plt.show()
+                plt.clear_figure()
+                plt.hist(torch.stack([sae.act_ema.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
+                plt.show()
+                plt.clear_figure()
+                for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
             
-            # print training info
-            print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/(time.time() - start_time)}')
-            start_time = time.time()
+            if opt_steps % steps_per_printout == 0:
+                # print training info
+                print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/(time.time() - start_time)}')
+                start_time = time.time()
             
             
             
