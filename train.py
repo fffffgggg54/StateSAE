@@ -479,7 +479,7 @@ while(1):
             for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
             
             # print training info
-            print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/((time.time() - start_time) / steps_per_printout)}')
+            print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/(time.time() - start_time)}')
             start_time = time.time()
             
             
