@@ -384,7 +384,7 @@ saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.dev
 denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
 #denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
 #optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
-optimizers = [pytorch_optimizer.SignSGD(sae.parameters(), lr=1e-2, weight_decay=1e-4) for sae in denseSaeList]
+optimizers = [pytorch_optimizer.SignSGD(sae.parameters(), lr=1e-3, weight_decay=1e-4) for sae in denseSaeList]
 
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
@@ -468,7 +468,7 @@ while(1):
                 
         
         if opt_steps % steps_per_printout == 0:
-            print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
+            print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/((time.time() - start_time) / steps_per_printout)')
             start_time = time.time()
         '''
         if curr_batch % steps_per_histogram == 0:
@@ -490,7 +490,6 @@ while(1):
             for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
             
             
-    break
     
 denseSaeList = [x.to('cpu') for x in denseSaeList]
 
