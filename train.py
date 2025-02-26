@@ -504,7 +504,13 @@ for idx, sae in enumerate(denseSaeList):
         state_dict['decoder.bias'] = dec_b
         saeList[idx * 18 + saeIdx] = saeList[idx * 18 + saeIdx].load_state_dict(state_dict)
 
-torch.save(nn.ModuleList(*saeList), "sae_checkpoint.pth")
+print(saeList)
+print(len(saeList))
+saeList = nn.ModuleList(saeList)
+print(saeList)
+print(len(saeList))
+
+torch.save(saeList, "sae_checkpoint.pth")
     
 
 
