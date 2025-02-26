@@ -88,11 +88,13 @@ class TopKRoutingBiasedSAE(nn.Module):
         self.encoder = nn.Linear(dim, hidden_features, device = device)
         self.act  = act_fn()
         self.decoder = nn.Linear(hidden_features, dim, device = device)
-        self.register_buffer('feature_bias', torch.zeros(hidden_features, device = device).float(), persistent=True)
+        #self.register_buffer('feature_bias', torch.zeros(hidden_features, device = device).float(), persistent=True)
         self.lr=lr
         self.num_active_features = k
-        self.register_buffer('act_sum', torch.zeros(hidden_features, device = device).float())
-        self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
+        #self.register_buffer('act_sum', torch.zeros(hidden_features, device = device).float())
+        self.act_sum = torch.zeros(hidden_features, device = device).float()
+        #self.register_buffer('act_ema', torch.zeros(hidden_features, device = device).float())
+        self.act_ema = torch.zeros(hidden_features, device = device).float()
         self.decay = 0.96
         self.eps = 1e-8
     
@@ -116,8 +118,8 @@ class TopKRoutingBiasedSAE(nn.Module):
             self.act_sum += feature_act
             if self.training:
                 self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
-                feature_error = self.act_ema.mean().add(self.eps).log() - self.act_ema.add(self.eps).log()
-                self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 6
+                #feature_error = self.act_ema.mean().add(self.eps).log() - self.act_ema.add(self.eps).log()
+                #self.feature_bias = (1-self.lr) * self.feature_bias + self.lr * feature_error * feature_error.abs() > 6
 
         x = self.decoder(x)
         return x
@@ -498,8 +500,8 @@ for idx, sae in enumerate(denseSaeList):
         state_dict = {}
         state_dict['encoder.weight'] = enc_w
         state_dict['encoder.bias'] = enc_b
-        state_dict['decoder.weight'] = enc_w
-        state_dict['decoder.bias'] = enc_b
+        state_dict['decoder.weight'] = dec_w
+        state_dict['decoder.bias'] = dec_b
         saeList[idx * 18 + saeIdx] = saeList[idx * 18 + saeIdx].load_state_dict(state_dict)
 
 torch.save(saeList, "sae_checkpoint.pth")
