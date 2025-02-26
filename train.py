@@ -11,6 +11,8 @@ import time
 import plotext as plt
 import copy
 
+import pytorch_optimizer
+
 batch_size = 2048
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
@@ -380,8 +382,8 @@ saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.dev
 
 denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
 #denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
-optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
-
+#optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
+optimizers = [pytorch_optimizer.SignSGD(sae.parameters(), lr=1e-2, weight_decay=1e-4) for sae in denseSaeList]
 
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
@@ -389,9 +391,10 @@ optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae 
 def norm_MSE(pred, targ): return (((pred - targ) ** 2).mean(dim=-1) / (targ**2).mean(dim=-1)).mean()
 criterion = norm_MSE
 
-
-steps_per_printout = 25
-steps_per_histogram = 250
+opt_steps = 0
+steps_per_printout = 1
+steps_per_histogram = 1
+grad_accum_epochs = 256
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
@@ -449,10 +452,11 @@ while(1):
         #print(states[0].shape)
             
         [loss.backward() for loss in losses]
-        [optimizer.step() for optimizer in optimizers]
-        [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
-        #[scheduler.step() for scheduler in schedulers]
-        if curr_batch % 4 == 0:
+        if curr_batch % grad_accum_epochs == 0:
+            opt_steps += 1
+            [optimizer.step() for optimizer in optimizers]
+            [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
+            #[scheduler.step() for scheduler in schedulers]
             do_print=True
             for sae in denseSaeList:
                 if sae.num_active_features > 16:
@@ -462,7 +466,7 @@ while(1):
                         print(f"k = {denseSaeList[0].num_active_features}")
                 
         
-        if curr_batch % steps_per_printout == 0:
+        if opt_steps % steps_per_printout == 0:
             print(f'tokens: {curr_batch * batch_size}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}')
             start_time = time.time()
         '''
