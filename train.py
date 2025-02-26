@@ -502,13 +502,9 @@ for idx, sae in enumerate(denseSaeList):
         state_dict['encoder.bias'] = enc_b
         state_dict['decoder.weight'] = dec_w
         state_dict['decoder.bias'] = dec_b
-        saeList[idx * 18 + saeIdx] = saeList[idx * 18 + saeIdx].load_state_dict(state_dict)
+        saeList[idx * 18 + saeIdx].load_state_dict(state_dict)
 
-print(saeList)
-print(len(saeList))
 saeList = nn.ModuleList(saeList)
-print(saeList)
-print(len(saeList))
 
 torch.save(saeList, "sae_checkpoint.pth")
     
