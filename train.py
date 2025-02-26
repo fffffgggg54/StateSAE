@@ -453,11 +453,8 @@ while(1):
         #print(states[0].shape)
             
         [loss.backward() for loss in losses]
-        if curr_batch % grad_accum_epochs == 0:
-            opt_steps += 1
-            [optimizer.step() for optimizer in optimizers]
-            [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
-            #[scheduler.step() for scheduler in schedulers]
+        
+        # print k and do update
             do_print=True
             for sae in denseSaeList:
                 if sae.num_active_features > 16:
@@ -465,11 +462,28 @@ while(1):
                     if do_print == True:
                         do_print=False
                         print(f"k = {denseSaeList[0].num_active_features}")
-                
         
-        if opt_steps % steps_per_printout == 0:
+        if curr_batch % grad_accum_epochs == 0:
+            opt_steps += 1
+            [optimizer.step() for optimizer in optimizers]
+            [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
+            #[scheduler.step() for scheduler in schedulers]
+            
+            # histograms
+            plt.hist(torch.stack([sae.act_sum.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
+            plt.show()
+            plt.clear_figure()
+            plt.hist(torch.stack([sae.act_ema.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
+            plt.show()
+            plt.clear_figure()
+            for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
+            
+            # print training info
             print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/((time.time() - start_time) / steps_per_printout)}')
             start_time = time.time()
+            
+            
+            
         '''
         if curr_batch % steps_per_histogram == 0:
             plt.hist(torch.stack([sae.act_sum.cpu() for sae in saeList]).sum(0).add(eps).log(), 50, label=f'total acts')
@@ -480,14 +494,7 @@ while(1):
             plt.clear_figure()
             for sae in saeList: sae.act_sum = sae.act_sum * 0
         '''
-        if curr_batch % steps_per_histogram == 0:
-            plt.hist(torch.stack([sae.act_sum.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label=f'total acts')
-            plt.show()
-            plt.clear_figure()
-            plt.hist(torch.stack([sae.act_ema.cpu() for sae in denseSaeList]).sum((0,1)).add(eps).log(), 50, label='running acts')
-            plt.show()
-            plt.clear_figure()
-            for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
+            
             
             
     
