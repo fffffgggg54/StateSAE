@@ -169,7 +169,6 @@ class DenseTopKSAE(nn.Module):
         self.eps = sae_list[0].eps
         
     
-    
     def forward(self, x):
         # [B, R, C]
         x = x - self.decoder_b
@@ -487,8 +486,24 @@ while(1):
             plt.show()
             plt.clear_figure()
             for sae in denseSaeList: sae.act_sum = sae.act_sum * 0
+            
+            
+    break
+    
+denseSaeList = [x.to('cpu') for x in denseSaeList]
 
+for idx, sae in enumerate(denseSaeList):
+    for saeIdx, (enc_w, enc_b, dec_w, dec_b) in enumerate(
+            zip(sae.encoder_w, sae.encoder_b, sae.decoder_w, sae.decoder_b)):
+        state_dict = {}
+        state_dict['encoder.weight'] = enc_w
+        state_dict['encoder.bias'] = enc_b
+        state_dict['decoder.weight'] = enc_w
+        state_dict['decoder.bias'] = enc_b
+        saeList[idx * 18 + saeIdx] = saeList[idx * 18 + saeIdx].load_state_dict(state_dict)
 
+torch.save(saeList, "sae_checkpoint.pth")
+    
 
 
 
