@@ -455,13 +455,13 @@ while(1):
         [loss.backward() for loss in losses]
         
         # print k and do update
-            do_print=True
-            for sae in denseSaeList:
-                if sae.num_active_features > 16:
-                    sae.num_active_features = sae.num_active_features - 1
-                    if do_print == True:
-                        do_print=False
-                        print(f"k = {denseSaeList[0].num_active_features}")
+        do_print=True
+        for sae in denseSaeList:
+            if sae.num_active_features > 16:
+                sae.num_active_features = sae.num_active_features - 1
+                if do_print == True:
+                    do_print=False
+                    print(f"k = {denseSaeList[0].num_active_features}")
         
         if curr_batch % grad_accum_epochs == 0:
             opt_steps += 1
