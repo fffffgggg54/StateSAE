@@ -468,7 +468,7 @@ while(1):
                 
         
         if opt_steps % steps_per_printout == 0:
-            print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/((time.time() - start_time) / steps_per_printout)')
+            print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs)/((time.time() - start_time) / steps_per_printout)}')
             start_time = time.time()
         '''
         if curr_batch % steps_per_histogram == 0:
