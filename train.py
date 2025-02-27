@@ -384,7 +384,7 @@ saeList = [TopKRoutingBiasedSAE(64, 64*128, k=64*64, lr=1e-4, device = torch.dev
 denseSaeList = [DenseTopKSAE(saeList[i:i + 18]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 144, 18))]
 #denseSaeList = [DenseTopKSAE(64, 64*128, 18, k=64*64, device=gpu).to(gpu) for gpu in available_gpus]
 
-optimizers = [optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4) for sae in denseSaeList]
+optimizers = [optim.AdamW(sae.parameters(), lr=3e-3, weight_decay=1e-4) for sae in denseSaeList]
 #optimizers = [pytorch_optimizer.Lamb(sae.parameters(), lr=1e-3, weight_decay=1e-4) for sae in denseSaeList]
 
 
@@ -394,8 +394,8 @@ def norm_MSE(pred, targ): return (((pred - targ) ** 2).mean(dim=-1) / (targ**2).
 criterion = norm_MSE
 
 opt_steps = 0
-steps_per_printout = 20
-steps_per_histogram = 20
+steps_per_printout = 100
+steps_per_histogram = 100
 grad_accum_epochs = 32
 curr_batch=0
 eps = 1e-8
