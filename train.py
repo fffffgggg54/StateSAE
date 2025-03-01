@@ -401,6 +401,7 @@ grad_accum_epochs = 1
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
+have_more_data=True
 while(1):
     
     with torch.no_grad():
@@ -409,6 +410,7 @@ while(1):
             with torch.autocast(device_type="cuda"):
                 state = state_loader.get_state_batch()
             if state is None:
+                have_more_data = False
                 print("no more data")
                 break
             #state_all_loaders += [state.detach()[:, :, :2].transpose(1, 2).flatten(-2).flatten(0,1)]
@@ -428,6 +430,7 @@ while(1):
                 states = [x.to(available_gpus[i % len(available_gpus)], non_blocking=True) for i, x in enumerate(states)]
 
     '''
+    if not have_more_data: break
     for device_offset in range(len(available_gpus)):
         curr_batch += 1
         
