@@ -16,7 +16,7 @@ import pytorch_optimizer
 batch_size = 2048
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
-model_name = 'SmerkyG/RWKV7-Goose-0.1B-Pile-HF'
+model_name = 'SmerkyG/RWKV7-Goose-0.1B-World2.8-HF'
 model_cpu = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
 models = [copy.deepcopy(model_cpu).to(x).eval() for x in available_gpus]
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
