@@ -85,7 +85,7 @@ class ResidualLoader():
                         filtered_acts[f'ffn.{blk}'] = self.activations[f'model.blocks.{blk}'][0]
                     all_acts = [v.flatten(0,1) for v in filtered_acts.values()]
 
-                    return torch.stack(all_acts)
+                    return torch.stack(all_acts, dim=1)
 
 
 class TopKSAEWithPerActBias(nn.Module):
@@ -99,7 +99,7 @@ class TopKSAEWithPerActBias(nn.Module):
             device='cpu',
     ):
         super().__init__()
-        self.decoder_b = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(num_layers * 2, dim, device=device)))
+        self.decoder_b = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(1, num_layers * 2, dim, device=device)))
         
         self.encoder_w = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(hidden_features, dim, device=device)))
         self.encoder_b = nn.Parameter(data=torch.zeros(hidden_features, device=device))
