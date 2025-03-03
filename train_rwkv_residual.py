@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 2048
+batch_size = 128
 
 # 1 gpu, gh200
 
