@@ -44,7 +44,7 @@ class ResidualLoader():
         def getActivation(name):
             # the hook signature
             def hook(model, input, output):
-                self.activation[name] = output
+                self.activations[name] = output
             return hook
 
         for module in self.model.named_modules():
@@ -80,9 +80,9 @@ class ResidualLoader():
                     # extract residual acts after every time-mix and channel-mix module
                     for blk in range(12):
                         # post attn
-                        filtered_acts[f'attn.{blk}'] = activation[f'model.blocks.{blk}'][0] - activation[f'model.blocks.{blk}.feed_forward'][0]
+                        filtered_acts[f'attn.{blk}'] = self.activations[f'model.blocks.{blk}'][0] - self.activations[f'model.blocks.{blk}.feed_forward'][0]
                         # post ffn
-                        filtered_acts[f'ffn.{blk}'] = activation[f'model.blocks.{blk}'][0]
+                        filtered_acts[f'ffn.{blk}'] = self.activation[f'model.blocks.{blk}'][0]
                     all_acts = [v.flatten(0,1) for v in filtered_acts.values()]
 
                     return torch.stack(all_acts)
