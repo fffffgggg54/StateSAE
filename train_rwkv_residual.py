@@ -82,7 +82,7 @@ class ResidualLoader():
                         # post attn
                         filtered_acts[f'attn.{blk}'] = self.activations[f'model.blocks.{blk}'][0] - self.activations[f'model.blocks.{blk}.feed_forward'][0]
                         # post ffn
-                        filtered_acts[f'ffn.{blk}'] = self.activation[f'model.blocks.{blk}'][0]
+                        filtered_acts[f'ffn.{blk}'] = self.activations[f'model.blocks.{blk}'][0]
                     all_acts = [v.flatten(0,1) for v in filtered_acts.values()]
 
                     return torch.stack(all_acts)
