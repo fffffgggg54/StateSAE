@@ -148,7 +148,7 @@ class TopKSAEWithPerActBias(nn.Module):
 loader = ResidualLoader(iterable_train_ds, model, tokenizer, batch_size)
 sae = TopKSAEWithPerActBias(768, 2**16, k=2**12, device='cuda:0')
 
-optimizer = optim.AdamW(sae.parameters(), lr=1e-4, weight_decay=1e-4)
+optimizer = optim.AdamW(sae.parameters(), lr=1e-3, weight_decay=1e-4)
 
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
@@ -159,7 +159,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 1000
 steps_per_histogram = 1000
-grad_accum_epochs = 1
+grad_accum_epochs = 32
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
@@ -183,15 +183,17 @@ while(1):
         
 
 
-    if sae.num_active_features > 64:
-        sae.num_active_features = sae.num_active_features - 1
-        print(f"k = {sae.num_active_features}")
+    
         
     if curr_batch % grad_accum_epochs == 0:
         opt_steps += 1
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
-        
+
+        if sae.num_active_features > 32:
+            sae.num_active_features = sae.num_active_features - 1
+            print(f"k = {sae.num_active_features}")
+            
         # histograms
         if opt_steps % steps_per_histogram == 0:
             plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'total acts')
