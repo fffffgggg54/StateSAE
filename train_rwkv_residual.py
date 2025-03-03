@@ -157,8 +157,8 @@ def norm_MSE(pred, targ): return (((pred - targ) ** 2).mean(dim=-1) / (targ**2).
 criterion = norm_MSE
 
 opt_steps = 0
-steps_per_printout = 1000
-steps_per_histogram = 1000
+steps_per_printout = 25
+steps_per_histogram = 25
 grad_accum_epochs = 32
 curr_batch=0
 eps = 1e-8
