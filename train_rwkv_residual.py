@@ -48,7 +48,7 @@ class ResidualLoader():
             return hook
 
         for module in self.model.named_modules():
-            handles.append(module[1].register_forward_hook(getActivation(module[0])))
+            self.handles.append(module[1].register_forward_hook(getActivation(module[0])))
 
     def get_batch(self):
         with torch.no_grad():
