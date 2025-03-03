@@ -178,7 +178,7 @@ while(1):
 
     preds = sae(residual_batch)
 
-    loss = criterion(pred, targ) 
+    loss = criterion(preds, residual_batch) 
     loss.backward()
         
 
