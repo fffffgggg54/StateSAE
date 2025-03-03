@@ -44,7 +44,7 @@ class ResidualLoader():
         def getActivation(name):
             # the hook signature
             def hook(model, input, output):
-                activation[name] = output
+                self.activation[name] = output
             return hook
 
         for module in self.model.named_modules():
