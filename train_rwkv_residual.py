@@ -12,6 +12,9 @@ import copy
 
 batch_size = 1024
 
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
 # 1 gpu, gh200
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-World2.8-HF'
