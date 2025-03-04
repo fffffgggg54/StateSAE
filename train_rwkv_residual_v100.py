@@ -204,7 +204,7 @@ while(1):
         targ_all_loaders = []
         for loader in loaders:
             with torch.autocast(device_type="cuda"):
-                targ = targ_loader.get_batch()
+                targ = loader.get_batch()
             if targ is None:
                 have_more_data = False
                 print("no more data")
