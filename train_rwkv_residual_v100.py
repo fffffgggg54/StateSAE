@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 128
+batch_size = 512
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-World2.8-HF'
