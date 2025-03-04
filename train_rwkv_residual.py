@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 2048
+batch_size = 1536
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
