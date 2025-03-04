@@ -220,7 +220,6 @@ while(1):
 
             # D * [B, R, C]
             targs = [targ_all_loaders[(d + device_offset) % len(available_gpus)][:, i:i + 3].to(available_gpus[d], non_blocking=True) for d, i in enumerate(range(0, 24, 3))]
-            targs = [targ.transpose(0, 1) for targ in targs]
             
         
         preds = [sae(targ) for sae, targ in zip(denseSaeList, targs)]
