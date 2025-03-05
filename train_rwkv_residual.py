@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 1536
+batch_size = 1024
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -91,7 +91,7 @@ class ResidualLoader():
                     return torch.stack(all_acts, dim=1)
 
 
-class TopKSAEWithPerActBias(nn.Module):
+class TopKSAE(nn.Module):
     def __init__(
             self,
             dim,
@@ -145,11 +145,77 @@ class TopKSAEWithPerActBias(nn.Module):
         x = x + self.decoder_b
         return x
         
+class TopKMLPSAE(nn.Module):
+    def __init__(
+            self,
+            dim,
+            hidden_features,
+            dense_hidden_features,
+            num_layers = 12,
+            k=16,
+            act_fn=nn.ReLU,
+            device='cpu',
+    ):
+        super().__init__()
+        
+        
+        self.encoder_w1 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dense_hidden_features, dim, device=device)))
+        self.encoder_b1 = nn.Parameter(data=torch.zeros(dense_hidden_features, device=device))
+        self.encoder_act = nn.GELU()
+        self.encoder_w2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(hidden_features, dense_hidden_features, device=device)))
+        self.encoder_b2 = nn.Parameter(data=torch.zeros(hidden_features, device=device))
+        
+        self.act = act_fn()
+        self.num_active_features = k
 
+        self.decoder_w1 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dense_hidden_features, hidden_features, device=device)))
+        self.decoder_b1 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dense_hidden_features, device=device)))
+        self.decoder_act = nn.GELU()
+        self.decoder_w2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dim, dense_hidden_features, device=device)))
+        self.decoder_b2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(1, num_layers * 2, dim, device=device)))
+        
+        self.act_sum = torch.zeros(hidden_features, device = device).float()
+        self.act_ema = torch.zeros(hidden_features, device = device).float()
+        self.decay = 0.96
+        self.eps = 1e-8
+
+    
+    def forward(self, x):
+        B, L, C = x.shape
+
+        x = x - self.decoder_b2
+        
+        x = torch.einsum('blc,dc->bld', x, self.encoder_w1)
+        x = x + self.encoder_b1
+        x = self.encoder_act(x)
+        x = torch.einsum('bld,nd->bln', x, self.encoder_w2)
+        x = x + self.encoder_b2
+        
+        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
+
+        mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
+        x = x * mask
+        
+        x = self.act(x)
+
+        # desire log-normal distribution
+        with torch.no_grad():
+            feature_act = (mask > 0).flatten(0, 1).sum(dim=0).float()
+            self.act_sum += feature_act
+            if self.training:
+                self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
+
+        x = torch.einsum('bln,dn->bld', x, self.decoder_w1)
+        x = x + self.decoder_b1
+        x = self.decoder_act(x)
+        x = torch.einsum('bld,cd->blc', x, self.decoder_w2)
+        x = x + self.decoder_b2
+        return x
 
 
 loader = ResidualLoader(iterable_train_ds, model, tokenizer, batch_size)
-sae = TopKSAEWithPerActBias(768, 2**16, k=2**12, device='cuda:0')
+#sae = TopKSAE(768, 2**16, k=2**12, device='cuda:0')
+sae = TopKMLPSAE(768, 2**16, 4096, k=2**12, device='cuda:0')
 
 optimizer = optim.AdamW(sae.parameters(), lr=1e-3, weight_decay=1e-4)
 
@@ -162,7 +228,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 25
 steps_per_histogram = 25
-grad_accum_epochs = 16
+grad_accum_epochs = 24
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
@@ -183,11 +249,7 @@ while(1):
 
     loss = criterion(preds, residual_batch) 
     loss.backward()
-        
 
-
-    
-        
     if curr_batch % grad_accum_epochs == 0:
         opt_steps += 1
         optimizer.step()
