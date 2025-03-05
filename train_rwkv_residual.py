@@ -17,20 +17,31 @@ torch.backends.cudnn.allow_tf32 = True
 
 # 1 gpu, gh200
 
+print('start model init')
+start_time = time.time()
+
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-World2.8-HF'
 model_cpu = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
 model = copy.deepcopy(model_cpu).to('cuda:0').eval()
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 
 
+
+
 for param in model.parameters():
     param.requires_grad = False
+print(f'finish model init, took {time.time() - start_time}')
+print('start ds init')
+start_time = time.time()
 
 ds = datasets.load_dataset("JeanKaddour/minipile", split='train') # 1337497600 tokens
 #ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
 ds = ds.shuffle()
 
 iterable_train_ds = iter(ds)
+
+print(f'finish ds init, took {time.time() - start_time}')
+
 
 class ResidualLoader():
     def __init__(self, dataset, model, tokenizer, batch_size):
@@ -212,12 +223,19 @@ class TopKMLPSAE(nn.Module):
         x = x + self.decoder_b2
         return x
 
-
+print('start loader init')
+start_time = time.time()
 loader = ResidualLoader(iterable_train_ds, model, tokenizer, batch_size)
+print(f'finish loader init, took {time.time() - start_time}')
+
+print('start sae init')
+start_time = time.time()
 #sae = TopKSAE(768, 2**16, k=2**12, device='cuda:0')
 sae = TopKMLPSAE(768, 2**16, 4096, k=2**12, device='cuda:0')
 
 optimizer = optim.AdamW(sae.parameters(), lr=1e-3, weight_decay=1e-4)
+
+print(f'finish sae init, took {time.time() - start_time}')
 
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
@@ -233,6 +251,7 @@ curr_batch=0
 eps = 1e-8
 start_time = time.time()
 have_more_data=True
+print('starting train loop')
 while(1):
     
     with torch.no_grad():
