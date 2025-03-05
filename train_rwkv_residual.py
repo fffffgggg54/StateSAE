@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 1024
+batch_size = 1536
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -228,7 +228,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 25
 steps_per_histogram = 25
-grad_accum_epochs = 24
+grad_accum_epochs = 16
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
