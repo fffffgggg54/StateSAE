@@ -279,7 +279,7 @@ while(1):
     
 sae = sae.cpu()
 
-torch.save(sae, "sae_checkpoint.pth")
+torch.save(sae, "rwkv7-0.1B-world2.8-resMLPSAE-minipile.pth")
     
 
 
