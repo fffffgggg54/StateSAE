@@ -234,6 +234,7 @@ start_time = time.time()
 sae = TopKMLPSAE(768, 2**16, 4096, k=2**12, device='cuda:0')
 
 optimizer = optim.AdamW(sae.parameters(), lr=1e-3, weight_decay=1e-4)
+scaler = torch.amp.GradScaler()
 
 print(f'finish sae init, took {time.time() - start_time}')
 
@@ -263,15 +264,16 @@ while(1):
                 break
     if not have_more_data: break
     curr_batch += 1
+    with torch.autocast(device_type="cuda", dtype = torch.bfloat16):
+        preds = sae(residual_batch)
 
-    preds = sae(residual_batch)
-
-    loss = criterion(preds, residual_batch) 
-    loss.backward()
+    loss = criterion(preds, residual_batch) / grad_accum_epochs
+    scaler.scale(loss).backward()
 
     if curr_batch % grad_accum_epochs == 0:
         opt_steps += 1
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
         optimizer.zero_grad(set_to_none=True)
 
         if sae.num_active_features > 32:
