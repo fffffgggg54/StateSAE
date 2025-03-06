@@ -247,6 +247,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 25
 steps_per_histogram = 25
+do_plot = False
 grad_accum_epochs = 16
 curr_batch=0
 eps = 1e-8
@@ -281,7 +282,7 @@ while(1):
             print(f"k = {sae.num_active_features}")
             
         # histograms
-        if opt_steps % steps_per_histogram == 0:
+        if opt_steps % steps_per_histogram == 0 and do_plot:
             plt.hist(sae.act_sum.cpu().add(eps).log(), 50, label=f'total acts')
             plt.show()
             plt.clear_figure()
