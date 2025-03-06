@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 1024
+batch_size = 768
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 print('start model init')
@@ -338,7 +338,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 25
 steps_per_histogram = 25
-grad_accum_epochs = 64
+grad_accum_epochs = 96
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
