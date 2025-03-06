@@ -10,7 +10,7 @@ import time
 import plotext as plt
 import copy
 
-batch_size = 2048
+batch_size = 1024
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-World2.8-HF'
@@ -178,10 +178,134 @@ class DenseTopKSAE(nn.Module):
         x = torch.einsum('brd,rcd->brc', x, self.decoder_w)
         x = x + self.decoder_b
         return x.squeeze(-1)
+
+class TopKMLPSAE(nn.Module):
+    def __init__(
+            self,
+            dim,
+            hidden_features,
+            dense_hidden_features,
+            k=16,
+            act_fn=nn.ReLU,
+            device='cpu',
+    ):
+        super().__init__()
         
+        
+        self.encoder_w1 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dense_hidden_features, dim, device=device)))
+        self.encoder_b1 = nn.Parameter(data=torch.zeros(dense_hidden_features, device=device))
+        self.encoder_act = nn.GELU()
+        self.encoder_w2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(hidden_features, dense_hidden_features, device=device)))
+        self.encoder_b2 = nn.Parameter(data=torch.zeros(hidden_features, device=device))
+        
+        self.act = act_fn()
+        self.num_active_features = k
+
+        self.decoder_w1 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dense_hidden_features, hidden_features, device=device)))
+        self.decoder_b1 = nn.Parameter(data=torch.zeros(dense_hidden_features, device=device))
+        self.decoder_act = nn.GELU()
+        self.decoder_w2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dim, dense_hidden_features, device=device)))
+        self.decoder_b2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dim, device=device)))
+        
+        self.act_sum = torch.zeros(hidden_features, device = device).float()
+        self.act_ema = torch.zeros(hidden_features, device = device).float()
+        self.decay = 0.96
+        self.eps = 1e-8
+
+    
+    def forward(self, x):
+        B, C = x.shape
+
+        x = x - self.decoder_b2
+        
+        x = torch.einsum('bc,dc->bd', x, self.encoder_w1)
+        x = x + self.encoder_b1
+        x = self.encoder_act(x)
+        x = torch.einsum('bd,nd->bn', x, self.encoder_w2)
+        x = x + self.encoder_b2
+        
+        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
+
+        mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
+        x = x * mask
+        
+        x = self.act(x)
+
+        # desire log-normal distribution
+        with torch.no_grad():
+            feature_act = (mask > 0).flatten(0).sum(dim=0).float()
+            self.act_sum += feature_act
+            if self.training:
+                self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
+
+        x = torch.einsum('bn,dn->bd', x, self.decoder_w1)
+        x = x + self.decoder_b1
+        x = self.decoder_act(x)
+        x = torch.einsum('bd,cd->bc', x, self.decoder_w2)
+        x = x + self.decoder_b2
+        return x
+
+class DenseTopKMLPSAE(nn.Module):
+    def __init__(self, sae_list):
+        super().__init__()
+        self.encoder_w1 = nn.Parameter(torch.stack([sae.encoder_w1 for sae in sae_list]))
+        self.encoder_b1 = nn.Parameter(torch.stack([sae.encoder_b1 for sae in sae_list]))
+        self.encoder_act = sae_list[0].encoder_act()
+        self.encoder_w2 = nn.Parameter(torch.stack([sae.encoder_w2 for sae in sae_list]))
+        self.encoder_b2 = nn.Parameter(torch.stack([sae.encoder_b2 for sae in sae_list]))
+        
+        self.act = sae_list[0].act
+        self.num_active_features = sae_list[0].num_active_features
+        
+        self.decoder_w1 = nn.Parameter(torch.stack([sae.decoder_w1 for sae in sae_list]))
+        self.decoder_b1 = nn.Parameter(torch.stack([sae.decoder_b1 for sae in sae_list]))
+        self.decoder_act = sae_list[0].decoder_act()
+        self.decoder_w2 = nn.Parameter(torch.stack([sae.decoder_w2 for sae in sae_list]))
+        self.decoder_b2 = nn.Parameter(torch.stack([sae.decoder_b2 for sae in sae_list]))
+        
+        self.register_buffer('act_sum', torch.stack([sae.act_sum for sae in sae_list]))
+        self.register_buffer('act_ema', torch.stack([sae.act_ema for sae in sae_list]))
+        
+        self.decay = sae_list[0].decay
+        self.eps = sae_list[0].eps
+        
+    
+    def forward(self, x):
+        # [B, R, C]
+        x = x - self.decoder_b2
+        
+        x = torch.einsum('brc,rdc->brd', x, self.encoder_w1)
+        x = x + self.encoder_b1
+        x = self.encoder_act(x)
+        x = torch.einsum('brd,rnd->brn', x, self.encoder_w2)
+        x = x + self.encoder_b2
+        
+        topk_values, topk_indices = torch.topk(x, self.num_active_features, dim=-1, sorted=False)
+
+        mask = torch.zeros_like(x).scatter_(-1, topk_indices, 1)
+        x = x * mask
+        
+        x = self.act(x)
+
+        # desire log-normal distribution
+        with torch.no_grad():
+            feature_act = (mask > 0).sum(dim=0).float()
+            self.act_sum += feature_act
+            if self.training:
+                self.act_ema = self.decay * self.act_ema + (1-self.decay) * feature_act
+
+        x = torch.einsum('brn,rdn->brd', x, self.decoder_w1)
+        x = x + self.decoder_b1
+        x = self.decoder_act(x)
+        x = torch.einsum('brd,rcd->brc', x, self.decoder_w2)
+        x = x + self.decoder_b2
+        return x
+
 loaders = [ResidualLoader(iterable_train_ds, model, tokenizer, batch_size) for model in models]
-saeList = [TopKSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
-denseSaeList = [DenseTopKSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
+#saeList = [TopKSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
+#denseSaeList = [DenseTopKSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
+saeList = [TopKMLPSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
+denseSaeList = [DenseTopKMLPSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
 
 optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
 
@@ -193,7 +317,7 @@ criterion = norm_MSE
 opt_steps = 0
 steps_per_printout = 25
 steps_per_histogram = 25
-grad_accum_epochs = 32
+grad_accum_epochs = 64
 curr_batch=0
 eps = 1e-8
 start_time = time.time()
