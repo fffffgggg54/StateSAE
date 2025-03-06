@@ -320,7 +320,9 @@ print('start sae init')
 start_time = time.time()
 #saeList = [TopKSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
 #denseSaeList = [DenseTopKSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
-saeList = [TopKMLPSAE(768, 32768, 4096, k=8192, device = torch.device('cpu')) for i in range(24)]
+
+baseSae = TopKMLPSAE(768, 32768, 4096, k=8192, device = torch.device('cpu'))
+saeList = [copy.deepcopy(baseSae) for i in range(24)]
 denseSaeList = [DenseTopKMLPSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
 
 optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
@@ -366,8 +368,9 @@ while(1):
             # D * [B, R, C]
             targs = [targ_all_loaders[(d + device_offset) % len(available_gpus)][:, i:i + 3].to(available_gpus[d], non_blocking=True) for d, i in enumerate(range(0, 24, 3))]
             
-        
-        preds = [sae(targ) for sae, targ in zip(denseSaeList, targs)]
+        with torch.autocast(device_type="cuda",):
+            preds = [sae(targ) for sae, targ in zip(denseSaeList, targs)]
+            
         losses = [0 for _ in available_gpus]
         for i, (pred, targ) in enumerate(zip(preds, targs)):
             losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
