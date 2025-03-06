@@ -294,7 +294,7 @@ while(1):
         if opt_steps % steps_per_printout == 0:
             # print training info
             print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {loss.cpu()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs * steps_per_printout)/(time.time() - start_time)}')
-            print(f'dead features: {(sae.act_ema < 1e-3).sum()}
+            print(f'dead features: {(sae.act_ema < 1e-3).sum()}')
             start_time = time.time()
 
             
