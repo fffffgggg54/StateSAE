@@ -205,7 +205,7 @@ class TopKMLPSAE(nn.Module):
         self.decoder_b1 = nn.Parameter(data=torch.zeros(dense_hidden_features, device=device))
         self.decoder_act = nn.GELU()
         self.decoder_w2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dim, dense_hidden_features, device=device)))
-        self.decoder_b2 = nn.Parameter(data=nn.init.kaiming_uniform_(torch.empty(dim, device=device)))
+        self.decoder_b2 = nn.Parameter(data=torch.zeros(dim, device=device))
         
         self.act_sum = torch.zeros(hidden_features, device = device).float()
         self.act_ema = torch.zeros(hidden_features, device = device).float()
