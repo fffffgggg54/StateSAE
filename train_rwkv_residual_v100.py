@@ -304,7 +304,7 @@ class DenseTopKMLPSAE(nn.Module):
 loaders = [ResidualLoader(iterable_train_ds, model, tokenizer, batch_size) for model in models]
 #saeList = [TopKSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
 #denseSaeList = [DenseTopKSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
-saeList = [TopKMLPSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
+saeList = [TopKMLPSAE(768, 32768, 4096 k=8192, device = torch.device('cpu')) for i in range(24)]
 denseSaeList = [DenseTopKMLPSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
 
 optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
