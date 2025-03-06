@@ -13,6 +13,9 @@ import copy
 batch_size = 1024
 available_gpus = [torch.device('cuda', i) for i in range(torch.cuda.device_count())]
 
+print('start model init')
+start_time = time.time()
+
 model_name = 'SmerkyG/RWKV7-Goose-0.1B-World2.8-HF'
 model_cpu = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
 models = [copy.deepcopy(model_cpu).to(x).eval() for x in available_gpus]
@@ -22,12 +25,18 @@ for model in models:
     for param in model.parameters():
         param.requires_grad = False
 
+print(f'finish model init, took {time.time() - start_time}')
+
+print('start ds init')
+start_time = time.time()
+
 # todo shuffle
 ds = datasets.load_dataset("JeanKaddour/minipile", split='train') # 1337497600 tokens
 #ds = datasets.load_dataset('cerebras/SlimPajama-627B', streaming=True, split='train')
 ds = ds.shuffle()
 
 iterable_train_ds = iter(ds)
+print(f'finish ds init, took {time.time() - start_time}')
 
 class ResidualLoader():
     def __init__(self, dataset, model, tokenizer, batch_size):
@@ -250,7 +259,7 @@ class DenseTopKMLPSAE(nn.Module):
         super().__init__()
         self.encoder_w1 = nn.Parameter(torch.stack([sae.encoder_w1 for sae in sae_list]))
         self.encoder_b1 = nn.Parameter(torch.stack([sae.encoder_b1 for sae in sae_list]))
-        self.encoder_act = sae_list[0].encoder_act()
+        self.encoder_act = sae_list[0].encoder_act
         self.encoder_w2 = nn.Parameter(torch.stack([sae.encoder_w2 for sae in sae_list]))
         self.encoder_b2 = nn.Parameter(torch.stack([sae.encoder_b2 for sae in sae_list]))
         
@@ -259,7 +268,7 @@ class DenseTopKMLPSAE(nn.Module):
         
         self.decoder_w1 = nn.Parameter(torch.stack([sae.decoder_w1 for sae in sae_list]))
         self.decoder_b1 = nn.Parameter(torch.stack([sae.decoder_b1 for sae in sae_list]))
-        self.decoder_act = sae_list[0].decoder_act()
+        self.decoder_act = sae_list[0].decoder_act
         self.decoder_w2 = nn.Parameter(torch.stack([sae.decoder_w2 for sae in sae_list]))
         self.decoder_b2 = nn.Parameter(torch.stack([sae.decoder_b2 for sae in sae_list]))
         
@@ -301,13 +310,23 @@ class DenseTopKMLPSAE(nn.Module):
         x = x + self.decoder_b2
         return x
 
+
+print('start loader init')
+start_time = time.time()
 loaders = [ResidualLoader(iterable_train_ds, model, tokenizer, batch_size) for model in models]
+print(f'finish loader init, took {time.time() - start_time}')
+
+print('start sae init')
+start_time = time.time()
 #saeList = [TopKSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
 #denseSaeList = [DenseTopKSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
 saeList = [TopKMLPSAE(768, 32768, 4096, k=8192, device = torch.device('cpu')) for i in range(24)]
 denseSaeList = [DenseTopKMLPSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
 
 optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
+scalers = [scaler = torch.amp.GradScaler() for sae in denseSaeList]
+print(f'finish sae init, took {time.time() - start_time}')
+
 
 # https://cdn.openai.com/papers/sparse-autoencoders.pdf
 # via https://github.com/openai/sparse_autoencoder/blob/main/sparse_autoencoder/loss.py 
@@ -322,6 +341,8 @@ curr_batch=0
 eps = 1e-8
 start_time = time.time()
 have_more_data=True
+
+print('starting train loop')
 while(1):
     
     with torch.no_grad():
@@ -350,8 +371,8 @@ while(1):
         losses = [0 for _ in available_gpus]
         for i, (pred, targ) in enumerate(zip(preds, targs)):
             losses[i % len(available_gpus)] = losses[i % len(available_gpus)] + criterion(pred, targ) 
-
-        [loss.backward() for loss in losses]
+        losses = [loss / grad_accum_epochs for loss in losses]
+        [scaler.scale(loss).backward() for loss, scaler in zip(losses, scalers)]
         
         # print k and do update
         do_print=True
@@ -364,7 +385,8 @@ while(1):
         
         if curr_batch % grad_accum_epochs == 0:
             opt_steps += 1
-            [optimizer.step() for optimizer in optimizers]
+            [scaler.step(optimizer) for optimizer, scaler in zip(optimizers, scalers)]
+            [scaler.update() for scaler in scalers]
             [optimizer.zero_grad(set_to_none=True) for optimizer in optimizers]
             
             # histograms
@@ -379,7 +401,7 @@ while(1):
             
             if opt_steps % steps_per_printout == 0:
                 # print training info
-                print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs * steps_per_printout)/(time.time() - start_time)}')
+                print(f'tokens: {opt_steps * batch_size * grad_accum_epochs}, mse loss: {torch.tensor([loss.cpu() * grad_accum_epochs for loss in losses]).mean()}, avg step time: {(time.time() - start_time) / steps_per_printout}, tps: {(batch_size * grad_accum_epochs * steps_per_printout)/(time.time() - start_time)}')
                 start_time = time.time()
               
     
