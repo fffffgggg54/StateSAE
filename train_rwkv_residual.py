@@ -250,7 +250,7 @@ steps_per_histogram = 25
 do_plot = False
 grad_accum_epochs = 16
 curr_batch=0
-eps = 1e-8
+eps = 1e-5
 start_time = time.time()
 have_more_data=True
 print('starting train loop')
