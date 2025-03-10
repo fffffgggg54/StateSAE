@@ -318,12 +318,13 @@ print(f'finish loader init, took {time.time() - start_time}')
 
 print('start sae init')
 start_time = time.time()
-#saeList = [TopKSAE(768, 32768, k=8192, device = torch.device('cpu')) for i in range(24)]
-#denseSaeList = [DenseTopKSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
-
-baseSae = TopKMLPSAE(768, 32768, 3072, k=8192, device = torch.device('cpu'))
+baseSae = TopKSAE(768, 32768, k=8192, device = torch.device('cpu'))
 saeList = [copy.deepcopy(baseSae) for i in range(24)]
 denseSaeList = [DenseTopKMLPSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
+
+#baseSae = TopKMLPSAE(768, 32768, 3072, k=8192, device = torch.device('cpu'))
+#saeList = [copy.deepcopy(baseSae) for i in range(24)]
+#denseSaeList = [DenseTopKMLPSAE(saeList[i:i + 3]).train().to(available_gpus[d]) for d, i in enumerate(range(0, 24, 3))]
 
 optimizers = [optim.AdamW(sae.parameters(), lr=3e-4, weight_decay=1e-4) for sae in denseSaeList]
 scalers = [torch.amp.GradScaler() for sae in denseSaeList]
