@@ -86,12 +86,20 @@ class ResidualLoader():
                     self.activations = {}
                     self.curr_state = self.model.forward(batch, state=self.curr_state).state
                     filtered_acts = {}
+                    '''
                     # extract residual acts after every time-mix and channel-mix module
                     for blk in range(12):
                         # post attn
                         filtered_acts[f'attn.{blk}'] = self.activations[f'model.blocks.{blk}'][0] - self.activations[f'model.blocks.{blk}.feed_forward'][0]
                         # post ffn
                         filtered_acts[f'ffn.{blk}'] = self.activations[f'model.blocks.{blk}'][0]
+                    '''
+                    for blk in range(12):
+                        # post attn
+                        filtered_acts[f'attn.{blk}'] = self.activations[f'model.blocks.{blk}.attention'][0]
+                        # post ffn
+                        filtered_acts[f'ffn.{blk}'] = self.activations[f'model.blocks.{blk}.feed_forward'][0]
+                    # extract module acts for each time-mix and channel-mix module
                     all_acts = [v.flatten(0,1) for v in filtered_acts.values()]
 
                     return torch.stack(all_acts, dim=1)
@@ -423,4 +431,4 @@ for idx, sae in enumerate(denseSaeList):
 
 saeList = nn.ModuleList(saeList)
 
-torch.save(saeList, "sae_checkpoint.pth")
+torch.save(saeList, "rwkv7-0.1B-world2.8-moduleSAE-minipile.pth")
